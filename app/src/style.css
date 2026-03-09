@@ -21,6 +21,7 @@
   --clr-todo: #6b7280;
   --clr-bezig: #f59e0b;
   --clr-klaar: #10b981;
+  --clr-ingediend: #4f46e5;
 
   --radius: 10px;
   --shadow: 0 1px 3px rgba(0,0,0,0.08);
@@ -41,7 +42,7 @@ body {
 /* ---- Layout ---- */
 
 #app {
-  max-width: 900px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 1rem;
 }
@@ -118,6 +119,7 @@ nav button:hover:not(.active) {
 .stat-value.todo { color: var(--clr-todo); }
 .stat-value.bezig { color: var(--clr-bezig); }
 .stat-value.klaar { color: var(--clr-klaar); }
+.stat-value.ingediend { color: var(--clr-ingediend); }
 
 .stat-label {
   font-size: 0.75rem;
@@ -294,6 +296,29 @@ nav button:hover:not(.active) {
   display: flex;
   gap: 0.25rem;
   margin-left: auto;
+}
+
+.btn-unplan {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 1rem;
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  padding: 0 0.3rem;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.taak:hover .btn-unplan {
+  opacity: 0.5;
+}
+
+.btn-unplan:hover {
+  opacity: 1 !important;
+  color: #ef4444;
+  border-color: #ef4444;
+  background: #fee2e2;
 }
 
 .flag {

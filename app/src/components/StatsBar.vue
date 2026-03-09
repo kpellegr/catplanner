@@ -6,7 +6,7 @@
     </div>
     <div class="stat">
       <span class="stat-value todo">{{ stats.todo }}</span>
-      <span class="stat-label">te doen</span>
+      <span class="stat-label">open</span>
     </div>
     <div class="stat">
       <span class="stat-value bezig">{{ stats.bezig }}</span>
@@ -15,6 +15,10 @@
     <div class="stat">
       <span class="stat-value klaar">{{ stats.klaar }}</span>
       <span class="stat-label">klaar</span>
+    </div>
+    <div class="stat">
+      <span class="stat-value ingediend">{{ stats.ingediend }}</span>
+      <span class="stat-label">ingediend</span>
     </div>
     <div class="stat">
       <span class="stat-value">{{ formatTijd(stats.gewerktMinuten) }} / {{ formatTijd(stats.totalMinuten) }}</span>
