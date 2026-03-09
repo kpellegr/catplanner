@@ -62,6 +62,37 @@ header h1 {
   margin: 0;
 }
 
+.header-titel {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.header-datum {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--clr-text-muted);
+}
+
+.header-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1.5px dashed var(--clr-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--clr-text-muted);
+  transition: all 0.15s;
+}
+
+.header-upload:hover {
+  border-color: var(--clr-accent);
+  color: var(--clr-accent);
+  background: var(--clr-accent-light);
+}
+
 nav {
   display: flex;
   gap: 0.5rem;
@@ -111,22 +142,25 @@ nav button:hover:not(.active) {
   min-width: 60px;
 }
 
-.stat-value {
-  font-size: 1.4rem;
+.stat-heading {
+  font-size: 0.7rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--clr-text-muted);
+  margin-bottom: 0.15rem;
+}
+
+.stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-value.todo { color: var(--clr-todo); }
 .stat-value.bezig { color: var(--clr-bezig); }
 .stat-value.klaar { color: var(--clr-klaar); }
 .stat-value.ingediend { color: var(--clr-ingediend); }
-
-.stat-label {
-  font-size: 0.75rem;
-  color: var(--clr-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
 
 /* ---- Upload ---- */
 

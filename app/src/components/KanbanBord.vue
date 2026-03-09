@@ -24,8 +24,8 @@
       :class="`kolom-${kolom.status}`"
     >
       <h3>{{ kolom.label }}</h3>
-      <span class="kolom-stats">{{ kolomMinuten(kolom.status) }} / {{ totaalMinuten }}'</span>
       <span class="kolom-count">{{ kolomTaken(kolom.status).length }}</span>
+      <span class="kolom-minuten">{{ kolomMinuten(kolom.status) }}'</span>
     </div>
 
     <!-- Per vak: header row + content row -->
@@ -430,7 +430,7 @@ function fireConfetti() {
 
 .kolom-header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.5rem;
   padding: 0.6rem 0.75rem;
   background: var(--clr-surface);
@@ -446,25 +446,23 @@ function fireConfetti() {
   font-weight: 700;
 }
 
-.kolom-stats {
-  font-size: 0.75rem;
+.kolom-count {
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--clr-text-muted);
+}
+
+.kolom-minuten {
+  margin-left: auto;
+  font-size: 1rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.kolom-count {
-  margin-left: auto;
-  background: var(--clr-border);
-  color: var(--clr-text-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  width: 1.5rem;
-  height: 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-}
+.kolom-open .kolom-minuten { color: var(--clr-todo); }
+.kolom-bezig .kolom-minuten { color: var(--clr-bezig); }
+.kolom-klaar .kolom-minuten { color: var(--clr-klaar); }
+.kolom-ingediend .kolom-minuten { color: var(--clr-accent); }
 
 .kolom-open { border-bottom-color: var(--clr-todo); }
 .kolom-bezig { border-bottom-color: var(--clr-bezig); }

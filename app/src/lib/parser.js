@@ -62,7 +62,7 @@ function parseMainTable(lines) {
       if (currentHoofdgroep === 'WISKUNDE') {
         const label = cleanMarkdown(cells[0] || '').trim();
         if (label && /\d/.test(label)) {
-          currentVak = label;
+          currentVak = `Wiskunde ${label}`;
           currentRouteContext = label;
           currentRichting = null;
         }
@@ -82,7 +82,7 @@ function parseMainTable(lines) {
         currentRichting = null;
         currentRouteContext = null;
       } else if (sectionInfo.type === 'route') {
-        if (currentHoofdgroep === 'WISKUNDE') currentVak = sectionInfo.naam;
+        if (currentHoofdgroep === 'WISKUNDE') currentVak = `Wiskunde ${sectionInfo.naam}`;
         currentRouteContext = sectionInfo.naam;
         currentRichting = null;
       }

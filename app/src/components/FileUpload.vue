@@ -1,11 +1,5 @@
 <template>
   <div>
-    <div v-if="!preview" class="upload-zone" @dragover.prevent @drop.prevent="onDrop" @click="$refs.input.click()">
-      <input ref="input" type="file" accept=".md,.txt" multiple @change="onFiles" hidden />
-      <p>Sleep studiewijzer(s) hierheen of klik om te uploaden</p>
-      <p class="hint">.md bestanden (bijv. P3W4.md)</p>
-    </div>
-
     <ImportPreview
       v-if="preview"
       :metadata="preview.metadata"
@@ -109,4 +103,6 @@ function onFiles(e) {
 function onDrop(e) {
   processFiles(e.dataTransfer.files);
 }
+
+defineExpose({ processFiles });
 </script>

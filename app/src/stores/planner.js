@@ -47,6 +47,12 @@ const vandaagTaken = computed(() => {
   return alleTaken.value.filter((t) => t.voortgang.status !== 'klaar');
 });
 
+function statusMinuten(taken, status) {
+  return taken
+    .filter((t) => t.voortgang.status === status)
+    .reduce((sum, t) => (t.tijd?.type === 'minuten' ? sum + t.tijd.minuten : sum), 0);
+}
+
 const stats = computed(() => {
   const taken = alleTaken.value;
   const todo = taken.filter((t) => t.voortgang.status === 'open').length;
@@ -58,7 +64,14 @@ const stats = computed(() => {
     return sum;
   }, 0);
   const gewerktMinuten = taken.reduce((sum, t) => sum + (t.voortgang.minutenGewerkt || 0), 0);
-  return { todo, bezig, klaar, ingediend, total: taken.length, totalMinuten, gewerktMinuten };
+  return {
+    todo, bezig, klaar, ingediend,
+    todoMin: statusMinuten(taken, 'open'),
+    bezigMin: statusMinuten(taken, 'bezig'),
+    klaarMin: statusMinuten(taken, 'klaar'),
+    ingediendMin: statusMinuten(taken, 'ingediend'),
+    total: taken.length, totalMinuten, gewerktMinuten,
+  };
 });
 
 // ---- Actions ----
