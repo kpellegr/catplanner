@@ -74,7 +74,7 @@ function parseMainTable(lines) {
     if (sectionInfo) {
       if (sectionInfo.type === 'hoofdgroep') {
         currentHoofdgroep = sectionInfo.naam;
-        currentVak = null;
+        currentVak = sectionInfo.vak || null;
         currentRichting = null;
         currentRouteContext = null;
       } else if (sectionInfo.type === 'vak') {
@@ -190,7 +190,10 @@ function detectSection(cells) {
     return { type: 'route', naam: cleaned };
   }
   if (/^WISKUNDE/i.test(cleaned)) return { type: 'hoofdgroep', naam: 'WISKUNDE' };
-  if (/^PROJECT/i.test(cleaned)) return { type: 'hoofdgroep', naam: 'PROJECT' };
+  if (/^PROJECT/i.test(cleaned)) {
+    // "PROJECT: KAAS" → hoofdgroep PROJECT with vak "PROJECT: KAAS"
+    return { type: 'hoofdgroep', naam: 'PROJECT', vak: cleaned };
+  }
 
   return { type: 'vak', naam: cleaned };
 }
