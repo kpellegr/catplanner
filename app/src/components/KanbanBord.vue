@@ -13,116 +13,64 @@
       >
         Huistaken
       </button>
-    </div>
-    <div class="toolbar-sort">
-      <label>Groepeer:</label>
-      <select v-model="sortering">
-        <option value="standaard">Standaard</option>
-        <option value="vak">Per vak</option>
-        <option value="kort">Kortste eerst</option>
-        <option value="lang">Langste eerst</option>
-      </select>
+      <button @click="toggleAlles">
+        {{ allesOpen ? 'Alles dichtklappen' : 'Alles openklappen' }}
+      </button>
     </div>
   </div>
 
-  <div class="kanban-bord">
+  <div class="kanban-grid">
+    <!-- Sticky column headers -->
     <div
       v-for="kolom in kolommen"
-      :key="kolom.status"
-      class="kanban-kolom"
-      :class="[`kolom-${kolom.status}`, { compact: kolom.compact }]"
-      @dragover.prevent
-      @dragenter.prevent="dragEnter($event, kolom.status)"
-      @dragleave="dragLeave($event, kolom.status)"
-      @drop="drop($event, kolom.status)"
+      :key="'h-' + kolom.status"
+      class="kolom-header"
+      :class="`kolom-${kolom.status}`"
     >
-      <div class="kolom-header">
-        <h3>{{ kolom.label }}</h3>
-        <span class="kolom-stats">
-          {{ kolomMinuten(kolom.status) }} / {{ totaalMinuten }}'
-        </span>
-        <span class="kolom-count">{{ kolomTaken(kolom.status).length }}</span>
-      </div>
+      <h3>{{ kolom.label }}</h3>
+      <span class="kolom-stats">{{ kolomMinuten(kolom.status) }} / {{ totaalMinuten }}'</span>
+      <span class="kolom-count">{{ kolomTaken(kolom.status).length }}</span>
+    </div>
 
-      <div
-        class="kolom-body"
-        :class="{ 'drag-over': dragOverKolom === kolom.status }"
+    <!-- Per vak: header row + content row -->
+    <template v-for="vak in vakken" :key="vak.naam">
+      <!-- Vak header spanning all columns -->
+      <button
+        class="vak-rij-header"
+        @click="toggleVak(vak.naam)"
       >
-        <!-- Grouped by vak -->
-        <template v-if="sortering === 'vak'">
-          <div
-            v-for="groep in kolomGroepen(kolom.status)"
-            :key="groep.vak"
-            class="vak-groep"
-          >
-            <button
-              class="vak-groep-header"
-              @click="toggleGroep(kolom.status, groep.vak)"
-            >
-              <span class="vak-groep-chevron" :class="{ open: isGroepOpen(kolom.status, groep.vak) }">&#9656;</span>
-              <span class="vak-groep-naam">{{ groep.vak || 'Overig' }}</span>
-              <span class="vak-groep-info">{{ groep.taken.length }} taken, {{ groepMinuten(groep.taken) }} min</span>
-            </button>
-            <div v-show="isGroepOpen(kolom.status, groep.vak)" class="vak-groep-body">
-              <template v-if="kolom.compact">
-                <div
-                  v-for="taak in groep.taken"
-                  :key="taak.id"
-                  class="kanban-kaart compact"
-                  :class="[hoofdgroepClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster', expanded: expandedKaarten[taak.id] }]"
-                  draggable="true"
-                  @dragstart="dragStart($event, taak)"
-                  @dragend="dragEnd"
-                  @click="toggleKaart(taak.id)"
-                >
-                  <div class="kaart-compact-row">
-                    <span v-if="taak.code" class="code">{{ taak.code }}</span>
-                    <span class="kaart-duur">{{ formatDuur(taak) }}</span>
-                  </div>
-                  <div v-if="expandedKaarten[taak.id]" class="kaart-expand">
-                    <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
-                    <div class="kaart-meta">
-                      <span v-if="taak.vak" class="kaart-vak">{{ taak.vak }}</span>
-                      <div class="flags">
-                        <span v-for="flag in taak.flags" :key="flag" class="flag">{{ flag }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>
-                <div
-                  v-for="taak in groep.taken"
-                  :key="taak.id"
-                  class="kanban-kaart"
-                  :class="[hoofdgroepClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster' }]"
-                  draggable="true"
-                  @dragstart="dragStart($event, taak)"
-                  @dragend="dragEnd"
-                >
-                  <div class="kaart-top">
-                    <span v-if="taak.code" class="code">{{ taak.code }}</span>
-                    <span v-if="taak.volgorde != null" class="volgorde">#{{ taak.volgorde }}</span>
-                    <div class="flags">
-                      <span v-for="flag in taak.flags" :key="flag" class="flag">{{ flag }}</span>
-                    </div>
-                    <span class="kaart-duur prominent">{{ formatDuur(taak) }}</span>
-                  </div>
-                  <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
-                  <div class="kaart-bottom">
-                    <span v-if="taak.vak" class="kaart-vak">{{ taak.vak }}</span>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-        </template>
+        <span class="vak-chevron" :class="{ open: isVakOpen(vak.naam) }">&#9656;</span>
+        <span class="vak-naam">{{ vak.naam || 'Overig' }}</span>
+        <span class="vak-samenvatting">{{ vak.taken.length }} taken, {{ vakMinuten(vak.taken) }} min</span>
+        <!-- Mini stats per kolom when collapsed -->
+        <span v-if="!isVakOpen(vak.naam)" class="vak-mini-stats">
+          <span
+            v-for="kolom in kolommen"
+            :key="kolom.status"
+            class="vak-mini-stat"
+            :class="`mini-${kolom.status}`"
+          >{{ vakKolomTaken(vak.naam, kolom.status).length }}</span>
+        </span>
+      </button>
 
-        <!-- Flat list (no grouping) -->
-        <template v-else>
+      <!-- Expanded: 4 cells -->
+      <template v-if="isVakOpen(vak.naam)">
+        <div
+          v-for="kolom in kolommen"
+          :key="vak.naam + '-' + kolom.status"
+          class="vak-cel"
+          :class="[
+            `cel-${kolom.status}`,
+            { 'drag-over': dragOverCel === vak.naam + '_' + kolom.status }
+          ]"
+          @dragover.prevent
+          @dragenter.prevent="dragEnterCel(vak.naam, kolom.status)"
+          @dragleave="dragLeaveCel($event, vak.naam, kolom.status)"
+          @drop="drop($event, kolom.status)"
+        >
           <template v-if="kolom.compact">
             <div
-              v-for="taak in kolomTaken(kolom.status)"
+              v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
               :key="taak.id"
               class="kanban-kaart compact"
               :class="[hoofdgroepClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster', expanded: expandedKaarten[taak.id] }]"
@@ -138,7 +86,6 @@
               <div v-if="expandedKaarten[taak.id]" class="kaart-expand">
                 <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
                 <div class="kaart-meta">
-                  <span v-if="taak.vak" class="kaart-vak">{{ taak.vak }}</span>
                   <div class="flags">
                     <span v-for="flag in taak.flags" :key="flag" class="flag">{{ flag }}</span>
                   </div>
@@ -148,7 +95,7 @@
           </template>
           <template v-else>
             <div
-              v-for="taak in kolomTaken(kolom.status)"
+              v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
               :key="taak.id"
               class="kanban-kaart"
               :class="[hoofdgroepClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster' }]"
@@ -159,24 +106,17 @@
               <div class="kaart-top">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
                 <span v-if="taak.volgorde != null" class="volgorde">#{{ taak.volgorde }}</span>
-                <span class="kaart-duur prominent">{{ formatDuur(taak) }}</span>
                 <div class="flags">
                   <span v-for="flag in taak.flags" :key="flag" class="flag">{{ flag }}</span>
                 </div>
+                <span class="kaart-duur prominent">{{ formatDuur(taak) }}</span>
               </div>
               <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
-              <div class="kaart-bottom">
-                <span v-if="taak.vak" class="kaart-vak">{{ taak.vak }}</span>
-              </div>
             </div>
           </template>
-        </template>
-
-        <div v-if="!kolomTaken(kolom.status).length" class="kolom-leeg">
-          Sleep taken hierheen
         </div>
-      </div>
-    </div>
+      </template>
+    </template>
   </div>
 
   <!-- Confetti canvas -->
@@ -191,12 +131,11 @@ const { alleTaken, updateVoortgang } = usePlanner();
 
 const verbergRooster = ref(false);
 const verbergHuistaken = ref(false);
-const sortering = ref('vak');
-const dragOverKolom = ref(null);
+const dragOverCel = ref(null);
 const draggingTaak = ref(null);
 const confettiCanvas = ref(null);
 const expandedKaarten = reactive({});
-const collapsedGroepen = reactive({});
+const openVakken = reactive({});
 
 const kolommen = [
   { status: 'open', label: 'Open', compact: false },
@@ -223,6 +162,19 @@ const totaalMinuten = computed(() => {
   }, 0);
 });
 
+// All unique vakken, sorted alphabetically
+const vakken = computed(() => {
+  const map = new Map();
+  for (const taak of gefilterdeTaken.value) {
+    const vak = taak.vak || '';
+    if (!map.has(vak)) map.set(vak, []);
+    map.get(vak).push(taak);
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([naam, taken]) => ({ naam, taken }));
+});
+
 function formatDuur(taak) {
   if (!taak.tijd) return '';
   if (taak.tijd.type === 'rooster') return 'R';
@@ -238,20 +190,6 @@ function formatDuur(taak) {
   return '';
 }
 
-function kolomMinuten(status) {
-  return kolomTaken(status).reduce((sum, t) => {
-    if (t.tijd?.type === 'minuten') return sum + t.tijd.minuten;
-    return sum;
-  }, 0);
-}
-
-function groepMinuten(taken) {
-  return taken.reduce((sum, t) => {
-    if (t.tijd?.type === 'minuten') return sum + t.tijd.minuten;
-    return sum;
-  }, 0);
-}
-
 function basisSort(a, b) {
   const codeA = (a.code || '').toUpperCase();
   const codeB = (b.code || '').toUpperCase();
@@ -259,56 +197,47 @@ function basisSort(a, b) {
   return (a.volgorde || 0) - (b.volgorde || 0);
 }
 
-function sorteerTaken(taken) {
-  const sorted = [...taken];
-  switch (sortering.value) {
-    case 'vak':
-      sorted.sort(basisSort);
-      break;
-    case 'kort':
-      sorted.sort((a, b) => (a.tijd?.minuten || 0) - (b.tijd?.minuten || 0) || basisSort(a, b));
-      break;
-    case 'lang':
-      sorted.sort((a, b) => (b.tijd?.minuten || 0) - (a.tijd?.minuten || 0) || basisSort(a, b));
-      break;
-    default:
-      sorted.sort(basisSort);
-      break;
-  }
-  return sorted;
-}
-
 function kolomTaken(status) {
-  return sorteerTaken(
-    gefilterdeTaken.value.filter((t) => t.voortgang.status === status)
-  );
+  return gefilterdeTaken.value.filter((t) => t.voortgang.status === status);
 }
 
-function kolomGroepen(status) {
-  const taken = kolomTaken(status);
-  const map = new Map();
-  for (const taak of taken) {
-    const vak = taak.vak || '';
-    if (!map.has(vak)) map.set(vak, []);
-    map.get(vak).push(taak);
+function kolomMinuten(status) {
+  return kolomTaken(status).reduce((sum, t) => {
+    if (t.tijd?.type === 'minuten') return sum + t.tijd.minuten;
+    return sum;
+  }, 0);
+}
+
+function vakMinuten(taken) {
+  return taken.reduce((sum, t) => {
+    if (t.tijd?.type === 'minuten') return sum + t.tijd.minuten;
+    return sum;
+  }, 0);
+}
+
+function vakKolomTaken(vakNaam, status) {
+  return gefilterdeTaken.value
+    .filter((t) => (t.vak || '') === vakNaam && t.voortgang.status === status)
+    .sort(basisSort);
+}
+
+function isVakOpen(vakNaam) {
+  return openVakken[vakNaam] === true; // collapsed by default
+}
+
+function toggleVak(vakNaam) {
+  openVakken[vakNaam] = !openVakken[vakNaam];
+}
+
+const allesOpen = computed(() => {
+  return vakken.value.length > 0 && vakken.value.every((v) => openVakken[v.naam]);
+});
+
+function toggleAlles() {
+  const open = !allesOpen.value;
+  for (const vak of vakken.value) {
+    openVakken[vak.naam] = open;
   }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([vak, taken]) => ({ vak, taken }));
-}
-
-function groepKey(status, vak) {
-  return `${status}_${vak}`;
-}
-
-function isGroepOpen(status, vak) {
-  const key = groepKey(status, vak);
-  return collapsedGroepen[key] === true; // collapsed by default
-}
-
-function toggleGroep(status, vak) {
-  const key = groepKey(status, vak);
-  collapsedGroepen[key] = !collapsedGroepen[key];
 }
 
 function toggleKaart(id) {
@@ -335,21 +264,22 @@ function dragStart(e, taak) {
 function dragEnd(e) {
   e.target.classList.remove('dragging');
   draggingTaak.value = null;
-  dragOverKolom.value = null;
+  dragOverCel.value = null;
 }
 
-function dragEnter(e, status) {
-  dragOverKolom.value = status;
+function dragEnterCel(vak, status) {
+  dragOverCel.value = vak + '_' + status;
 }
 
-function dragLeave(e, status) {
+function dragLeaveCel(e, vak, status) {
   if (!e.currentTarget.contains(e.relatedTarget)) {
-    if (dragOverKolom.value === status) dragOverKolom.value = null;
+    const key = vak + '_' + status;
+    if (dragOverCel.value === key) dragOverCel.value = null;
   }
 }
 
 function drop(e, status) {
-  dragOverKolom.value = null;
+  dragOverCel.value = null;
   if (!draggingTaak.value) return;
   const taak = draggingTaak.value;
   if (taak.voortgang.status === status) return;
@@ -424,10 +354,14 @@ function fireConfetti() {
 .kanban-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
+}
+
+.toolbar-links {
+  display: flex;
+  gap: 0.4rem;
 }
 
 .toolbar-links button {
@@ -449,50 +383,26 @@ function fireConfetti() {
   opacity: 0.6;
 }
 
-.toolbar-sort {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
+/* ---- Grid layout ---- */
 
-.toolbar-sort label {
-  font-size: 0.85rem;
-  color: var(--clr-text-muted);
-}
-
-.toolbar-sort select {
-  font-size: 0.85rem;
-  padding: 0.4rem 0.6rem;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  background: var(--clr-surface);
-  cursor: pointer;
-}
-
-/* ---- Kanban Grid ---- */
-
-.kanban-bord {
+.kanban-grid {
   display: grid;
   grid-template-columns: 2fr 2fr 1fr 1fr;
-  gap: 0.75rem;
-  min-height: 60vh;
+  gap: 0;
 }
 
-.kanban-kolom {
-  background: var(--clr-bg);
-  border-radius: var(--radius);
-  border: 2px solid var(--clr-border);
-  display: flex;
-  flex-direction: column;
-  min-height: 300px;
-}
+/* ---- Column headers (sticky) ---- */
 
 .kolom-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--clr-surface);
   border-bottom: 2px solid var(--clr-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .kolom-header h3 {
@@ -521,90 +431,103 @@ function fireConfetti() {
   border-radius: 50%;
 }
 
-.kolom-open .kolom-header { border-bottom-color: var(--clr-todo); }
-.kolom-bezig .kolom-header { border-bottom-color: var(--clr-bezig); }
-.kolom-klaar .kolom-header { border-bottom-color: var(--clr-klaar); }
-.kolom-ingediend .kolom-header { border-bottom-color: var(--clr-accent); }
+.kolom-open { border-bottom-color: var(--clr-todo); }
+.kolom-bezig { border-bottom-color: var(--clr-bezig); }
+.kolom-klaar { border-bottom-color: var(--clr-klaar); }
+.kolom-ingediend { border-bottom-color: var(--clr-accent); }
 
-.kolom-body {
-  flex: 1;
-  padding: 0.5rem;
+/* ---- Vak row header ---- */
+
+.vak-rij-header {
+  grid-column: 1 / -1;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.5rem;
-  transition: background 0.15s;
-  border-radius: 0 0 var(--radius) var(--radius);
-  overflow-y: auto;
-}
-
-.kolom-body.drag-over {
-  background: var(--clr-accent-light);
-}
-
-.kolom-leeg {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--clr-text-muted);
-  font-size: 0.8rem;
-  opacity: 0.5;
-  min-height: 80px;
-}
-
-/* ---- Vak Groep ---- */
-
-.vak-groep {
-  margin-bottom: 0.25rem;
-}
-
-.vak-groep-header {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  width: 100%;
-  background: none;
+  padding: 0.5rem 0.75rem;
+  background: var(--clr-surface);
   border: none;
-  padding: 0.35rem 0.25rem;
+  border-bottom: 1px solid var(--clr-border);
+  border-top: 1px solid var(--clr-border);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--clr-text);
-  border-radius: 6px;
+  text-align: left;
   transition: background 0.1s;
 }
 
-.vak-groep-header:hover {
-  background: var(--clr-surface);
+.vak-rij-header:hover {
+  background: var(--clr-bg);
 }
 
-.vak-groep-chevron {
+.vak-chevron {
   font-size: 0.7rem;
   transition: transform 0.15s;
   color: var(--clr-text-muted);
 }
 
-.vak-groep-chevron.open {
+.vak-chevron.open {
   transform: rotate(90deg);
 }
 
-.vak-groep-naam {
-  flex: 1;
-  text-align: left;
+.vak-naam {
+  font-weight: 700;
 }
 
-.vak-groep-info {
-  font-size: 0.7rem;
+.vak-samenvatting {
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--clr-text-muted);
 }
 
-.vak-groep-body {
+.vak-mini-stats {
+  margin-left: auto;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.vak-mini-stat {
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--clr-bg);
+}
+
+.mini-open { color: var(--clr-todo); }
+.mini-bezig { color: var(--clr-bezig); }
+.mini-klaar { color: var(--clr-klaar); }
+.mini-ingediend { color: var(--clr-accent); }
+
+/* ---- Vak cel (expanded content per kolom) ---- */
+
+.vak-cel {
+  padding: 0.4rem;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding-left: 0.25rem;
-  margin-top: 0.25rem;
+  min-height: 2.5rem;
+  background: var(--clr-bg);
+  border-bottom: 1px solid var(--clr-border);
+  transition: background 0.15s;
+}
+
+.vak-cel:nth-child(4n+2) { /* open */
+  border-right: 1px solid var(--clr-border);
+}
+.vak-cel:nth-child(4n+3) { /* bezig */
+  border-right: 1px solid var(--clr-border);
+}
+.vak-cel:nth-child(4n) { /* klaar */
+  border-right: 1px solid var(--clr-border);
+}
+
+.vak-cel.drag-over {
+  background: var(--clr-accent-light);
 }
 
 /* ---- Kanban Kaart (full) ---- */
@@ -652,20 +575,13 @@ function fireConfetti() {
 }
 
 .kaart-tekst {
-  margin: 0 0 0.35rem 0;
+  margin: 0;
   font-size: 0.85rem;
   line-height: 1.4;
   color: var(--clr-text);
 }
 
-.kaart-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.25rem;
-}
-
-/* Duration badge - prominent */
+/* Duration badge */
 .kaart-duur {
   font-size: 0.75rem;
   font-weight: 700;
@@ -681,13 +597,6 @@ function fireConfetti() {
   background: var(--clr-accent-light);
   color: var(--clr-accent);
   padding: 0.15rem 0.5rem;
-}
-
-.kaart-vak {
-  font-size: 0.7rem;
-  color: var(--clr-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 
 /* ---- Compact kaart (klaar/ingediend) ---- */
@@ -746,14 +655,17 @@ function fireConfetti() {
 /* ---- Responsive ---- */
 
 @media (max-width: 900px) {
-  .kanban-bord {
-    grid-template-columns: 1fr 1fr;
+  .kanban-grid {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
   }
 }
 
-@media (max-width: 500px) {
-  .kanban-bord {
-    grid-template-columns: 1fr;
+@media (max-width: 600px) {
+  .kanban-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .vak-rij-header {
+    grid-column: 1 / -1;
   }
 }
 </style>
