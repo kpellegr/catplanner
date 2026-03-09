@@ -1,21 +1,17 @@
 <template>
   <div class="kanban-toolbar">
-    <div class="toolbar-links">
+    <button class="btn-expand" @click="toggleAlles" :title="allesOpen ? 'Alles dichtklappen' : 'Alles openklappen'">
+      <span class="expand-icon" :class="{ open: allesOpen }">+</span>
+    </button>
+    <div class="segmented-group">
       <button
-        :class="{ active: verbergRooster }"
+        :class="{ on: !verbergRooster }"
         @click="verbergRooster = !verbergRooster"
-      >
-        Rooster
-      </button>
+      >Rooster</button>
       <button
-        :class="{ active: verbergHuistaken }"
+        :class="{ on: !verbergHuistaken }"
         @click="verbergHuistaken = !verbergHuistaken"
-      >
-        Huistaken
-      </button>
-      <button @click="toggleAlles">
-        {{ allesOpen ? 'Alles dichtklappen' : 'Alles openklappen' }}
-      </button>
+      >Huistaken</button>
     </div>
   </div>
 
@@ -359,28 +355,67 @@ function fireConfetti() {
   flex-wrap: wrap;
 }
 
-.toolbar-links {
-  display: flex;
-  gap: 0.4rem;
-}
+/* Segmented toggle */
 
-.toolbar-links button {
-  background: var(--clr-surface);
+.segmented-group {
+  display: flex;
   border: 1px solid var(--clr-border);
   border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented-group button {
+  background: var(--clr-bg);
+  border: none;
+  border-right: 1px solid var(--clr-border);
   padding: 0.4rem 0.8rem;
   font-size: 0.85rem;
   cursor: pointer;
   color: var(--clr-text-muted);
   transition: all 0.15s;
+  font-weight: 500;
 }
 
-.toolbar-links button.active {
-  background: var(--clr-bg);
+.segmented-group button:last-child {
+  border-right: none;
+}
+
+.segmented-group button.on {
+  background: var(--clr-accent);
+  color: white;
+}
+
+/* Expand/collapse +/- button */
+
+.btn-expand {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  background: var(--clr-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.btn-expand:hover {
+  border-color: var(--clr-accent);
+  background: var(--clr-accent-light);
+}
+
+.expand-icon {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
   color: var(--clr-text-muted);
-  border-color: var(--clr-border);
-  text-decoration: line-through;
-  opacity: 0.6;
+  transition: transform 0.2s;
+}
+
+.expand-icon.open {
+  transform: rotate(45deg);
 }
 
 /* ---- Grid layout ---- */
