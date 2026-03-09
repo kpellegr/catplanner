@@ -74,6 +74,7 @@
               @dragstart="dragStart($event, taak)"
               @dragend="dragEnd"
               @click="toggleKaart(taak.id)"
+              @dblclick.stop="openEdit(taak)"
             >
               <div class="kaart-compact-row">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
@@ -98,6 +99,7 @@
               draggable="true"
               @dragstart="dragStart($event, taak)"
               @dragend="dragEnd"
+              @dblclick="openEdit(taak)"
             >
               <div class="kaart-top">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
@@ -115,6 +117,33 @@
     </template>
   </div>
 
+  <!-- Edit modal -->
+  <div v-if="editingTaak" class="edit-overlay" @click.self="editingTaak = null">
+    <div class="edit-modal">
+      <h3>Taak bewerken</h3>
+      <label>
+        <span>Code</span>
+        <input v-model="editForm.code" />
+      </label>
+      <label>
+        <span>Vak</span>
+        <input v-model="editForm.vak" />
+      </label>
+      <label>
+        <span>Omschrijving</span>
+        <textarea v-model="editForm.omschrijving" rows="3"></textarea>
+      </label>
+      <label>
+        <span>Duur (minuten)</span>
+        <input v-model.number="editForm.minuten" type="number" min="0" />
+      </label>
+      <div class="edit-actions">
+        <button class="btn-save" @click="saveEdit">Opslaan</button>
+        <button @click="editingTaak = null">Annuleer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Confetti canvas -->
   <canvas ref="confettiCanvas" class="confetti-canvas"></canvas>
 </template>
@@ -123,7 +152,7 @@
 import { ref, reactive, computed } from 'vue';
 import { usePlanner } from '../stores/planner.js';
 
-const { alleTaken, updateVoortgang } = usePlanner();
+const { alleTaken, updateVoortgang, editTaak } = usePlanner();
 
 const verbergRooster = ref(false);
 const verbergHuistaken = ref(false);
@@ -132,6 +161,8 @@ const draggingTaak = ref(null);
 const confettiCanvas = ref(null);
 const expandedKaarten = reactive({});
 const openVakken = reactive({});
+const editingTaak = ref(null);
+const editForm = reactive({ code: '', vak: '', omschrijving: '', minuten: 0 });
 
 const kolommen = [
   { status: 'open', label: 'Open', compact: false },
@@ -247,6 +278,27 @@ function hoofdgroepClass(taak) {
   if (hg.includes('WISKUNDE')) return 'hg-wiskunde';
   if (hg.includes('PROJECT')) return 'hg-project';
   return 'hg-algemeen';
+}
+
+// ---- Edit ----
+
+function openEdit(taak) {
+  editingTaak.value = taak;
+  editForm.code = taak.code || '';
+  editForm.vak = taak.vak || '';
+  editForm.omschrijving = taak.omschrijving || '';
+  editForm.minuten = taak.tijd?.type === 'minuten' ? taak.tijd.minuten : 0;
+}
+
+async function saveEdit() {
+  if (!editingTaak.value) return;
+  await editTaak(editingTaak.value.id, {
+    code: editForm.code,
+    vak: editForm.vak,
+    omschrijving: editForm.omschrijving,
+    minuten: editForm.minuten || null,
+  });
+  editingTaak.value = null;
 }
 
 // ---- Drag & Drop ----
@@ -670,6 +722,90 @@ function fireConfetti() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* ---- Edit modal ---- */
+
+.edit-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.edit-modal {
+  background: var(--clr-surface);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+  padding: 1.25rem;
+  width: 400px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.edit-modal h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.edit-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.edit-modal label span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--clr-text-muted);
+}
+
+.edit-modal input,
+.edit-modal textarea {
+  font-size: 0.9rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--clr-border);
+  border-radius: 6px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.edit-modal input:focus,
+.edit-modal textarea:focus {
+  outline: none;
+  border-color: var(--clr-accent);
+  box-shadow: 0 0 0 2px var(--clr-accent-light);
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
+.edit-actions button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--clr-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: var(--clr-surface);
+  color: var(--clr-text-muted);
+}
+
+.edit-actions .btn-save {
+  background: var(--clr-accent);
+  color: white;
+  border-color: var(--clr-accent);
+  font-weight: 600;
 }
 
 /* ---- Confetti ---- */

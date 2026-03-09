@@ -89,6 +89,65 @@ async function importStudiewijzerData(filtered) {
   await save();
 }
 
+async function editTaak(id, updates) {
+  // Find the task in the source data and update it
+  for (const week of state.weken) {
+    for (const section of week.sections) {
+      for (const taak of section.taken) {
+        const tid = taakId(taak, week.metadata);
+        if (tid !== id) continue;
+
+        const oldId = id;
+
+        // Apply updates to source
+        if (updates.code !== undefined) taak.code = updates.code;
+        if (updates.omschrijving !== undefined) taak.omschrijving = updates.omschrijving;
+        if (updates.minuten !== undefined) {
+          taak.tijd = updates.minuten
+            ? { type: 'minuten', minuten: updates.minuten }
+            : taak.tijd;
+        }
+
+        // Handle vak change: move task to matching section
+        if (updates.vak !== undefined && updates.vak !== section.vak) {
+          const ti = section.taken.indexOf(taak);
+          if (ti >= 0) section.taken.splice(ti, 1);
+          taak.vak = updates.vak;
+          let target = week.sections.find(
+            (s) => s.vak === updates.vak
+          );
+          if (!target) {
+            target = { hoofdgroep: section.hoofdgroep, vak: updates.vak, taken: [] };
+            week.sections.push(target);
+          }
+          target.taken.push(taak);
+          // Clean empty sections
+          if (section.taken.length === 0) {
+            const si = week.sections.indexOf(section);
+            if (si >= 0) week.sections.splice(si, 1);
+          }
+        }
+
+        // Migrate voortgang/planning if ID changed
+        const newId = taakId(taak, week.metadata);
+        if (newId !== oldId) {
+          if (state.voortgang[oldId]) {
+            state.voortgang[newId] = state.voortgang[oldId];
+            delete state.voortgang[oldId];
+          }
+          if (state.planning[oldId]) {
+            state.planning[newId] = state.planning[oldId];
+            delete state.planning[oldId];
+          }
+        }
+
+        await save();
+        return;
+      }
+    }
+  }
+}
+
 async function updateVoortgang(id, update) {
   state.voortgang[id] = { ...(state.voortgang[id] || { status: 'open', minutenGewerkt: 0 }), ...update };
   await save();
@@ -193,6 +252,7 @@ export function usePlanner() {
     DAGEN,
     STATUSSEN,
     importStudiewijzerData,
+    editTaak,
     updateVoortgang,
     planTaak,
     updateLesBlokken,
