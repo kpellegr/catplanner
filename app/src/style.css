@@ -121,6 +121,18 @@ nav button:hover:not(.active) {
   color: var(--clr-text);
 }
 
+nav .btn-reset {
+  margin-left: 0.5rem;
+  color: #ef4444;
+  border-color: #fecaca;
+}
+
+nav .btn-reset:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
 /* ---- Stats ---- */
 
 .stats-bar {

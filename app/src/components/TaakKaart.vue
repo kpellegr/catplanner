@@ -6,6 +6,7 @@
       <div class="flags">
         <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagLabel(flag)">{{ flag }}</span>
       </div>
+      <button v-if="planbaar" class="btn-unplan" @click="$emit('unplan')" title="Verwijder uit dag">&times;</button>
     </div>
 
     <p class="omschrijving">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
@@ -43,8 +44,11 @@
 <script setup>
 import { computed } from 'vue';
 
-const props = defineProps({ taak: Object });
-defineEmits(['status', 'werk']);
+const props = defineProps({
+  taak: Object,
+  planbaar: { type: Boolean, default: false },
+});
+defineEmits(['status', 'werk', 'unplan']);
 
 const statusClass = computed(() => `status-${props.taak.voortgang.status}`);
 

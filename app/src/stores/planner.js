@@ -182,6 +182,14 @@ async function verwijderWeek(periode, week) {
   await save();
 }
 
+async function resetAlles() {
+  state.weken = [];
+  state.voortgang = {};
+  state.planning = {};
+  state.lesBlokken = {};
+  await save();
+}
+
 // ---- IndexedDB persistence ----
 
 function openDB() {
@@ -258,5 +266,6 @@ export function usePlanner() {
     updateLesBlokken,
     getLesBlokken,
     verwijderWeek,
+    resetAlles,
   };
 }

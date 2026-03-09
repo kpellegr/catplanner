@@ -12,6 +12,7 @@
       <nav v-if="state.weken.length">
         <button :class="{ active: view === 'kanban' }" @click="view = 'kanban'">Kanban</button>
         <button :class="{ active: view === 'print' }" @click="view = 'print'">Afdrukken</button>
+        <button class="btn-reset" @click="onReset">Reset</button>
       </nav>
     </header>
 
@@ -45,7 +46,7 @@ import KanbanBord from './components/KanbanBord.vue';
 import StatsBar from './components/StatsBar.vue';
 import PrintRapport from './components/PrintRapport.vue';
 
-const { state } = usePlanner();
+const { state, resetAlles } = usePlanner();
 const view = ref('kanban');
 const fileUploadRef = ref(null);
 const fileInput = ref(null);
@@ -82,5 +83,12 @@ function onDrop(e) {
 
 function print() {
   window.print();
+}
+
+async function onReset() {
+  if (confirm('Alle data wissen? Dit kan niet ongedaan gemaakt worden.')) {
+    await resetAlles();
+    view.value = 'kanban';
+  }
 }
 </script>
