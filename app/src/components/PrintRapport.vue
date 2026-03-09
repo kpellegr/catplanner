@@ -1,7 +1,15 @@
 <template>
   <div class="print-rapport">
+    <div class="rapport-filters no-print">
+      <div class="segmented-group">
+        <button :class="{ on: !verbergRooster }" @click="verbergRooster = !verbergRooster">Rooster</button>
+        <button :class="{ on: !verbergKlaar }" @click="verbergKlaar = !verbergKlaar">Afgewerkt</button>
+      </div>
+    </div>
+
     <div class="rapport-header">
-      <h1>Catplanner — Takenoverzicht</h1>
+      <h1 v-if="weekInfo">Planning week {{ weekInfo.week }} <span class="rapport-week-datum">{{ weekInfo.datum }}</span></h1>
+      <h1 v-else>Takenoverzicht</h1>
       <p class="rapport-datum">Afgedrukt op {{ vandaag }}</p>
     </div>
 
@@ -47,10 +55,30 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { usePlanner } from '../stores/planner.js';
 
-const { alleTaken } = usePlanner();
+const { state, alleTaken } = usePlanner();
+
+const maanden = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+
+function fmtDatum(ddmmyyyy) {
+  const [d, m] = ddmmyyyy.split('/');
+  return `${parseInt(d)} ${maanden[parseInt(m) - 1]}`;
+}
+
+const weekInfo = computed(() => {
+  if (!state.weken.length) return null;
+  const w = state.weken[0].metadata;
+  let datum = '';
+  if (w.datumRange) {
+    datum = `${fmtDatum(w.datumRange.van)} – ${fmtDatum(w.datumRange.tot)}`;
+  }
+  return { week: w.week, datum };
+});
+
+const verbergRooster = ref(false);
+const verbergKlaar = ref(false);
 
 const vandaag = new Date().toLocaleDateString('nl-BE', {
   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -63,9 +91,20 @@ function basisSort(a, b) {
   return (a.volgorde || 0) - (b.volgorde || 0);
 }
 
+const gefilterdeTaken = computed(() => {
+  let taken = alleTaken.value;
+  if (verbergRooster.value) {
+    taken = taken.filter((t) => t.tijd?.type !== 'rooster');
+  }
+  if (verbergKlaar.value) {
+    taken = taken.filter((t) => t.voortgang.status !== 'klaar' && t.voortgang.status !== 'ingediend');
+  }
+  return taken;
+});
+
 const vakken = computed(() => {
   const map = new Map();
-  for (const taak of alleTaken.value) {
+  for (const taak of gefilterdeTaken.value) {
     const vak = taak.vak || '';
     if (!map.has(vak)) map.set(vak, []);
     map.get(vak).push(taak);
@@ -99,6 +138,38 @@ function vakMinuten(taken) {
 </script>
 
 <style scoped>
+.rapport-filters {
+  margin-bottom: 1rem;
+}
+
+.segmented-group {
+  display: inline-flex;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segmented-group button {
+  background: var(--clr-bg);
+  border: none;
+  border-right: 1px solid var(--clr-border);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--clr-text-muted);
+  transition: all 0.15s;
+  font-weight: 500;
+}
+
+.segmented-group button:last-child {
+  border-right: none;
+}
+
+.segmented-group button.on {
+  background: var(--clr-accent);
+  color: white;
+}
+
 .print-rapport {
   max-width: 800px;
   margin: 0 auto;
@@ -116,6 +187,12 @@ function vakMinuten(taken) {
 .rapport-header h1 {
   margin: 0;
   font-size: 1.4rem;
+}
+
+.rapport-week-datum {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6b7280;
 }
 
 .rapport-datum {

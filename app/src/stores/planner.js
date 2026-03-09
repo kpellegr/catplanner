@@ -81,19 +81,10 @@ function taakId(taak, metadata) {
 }
 
 async function importStudiewijzerData(filtered) {
-  // Replace existing week if same period+week
-  const idx = state.weken.findIndex(
-    (w) => w.metadata.periode === filtered.metadata.periode && w.metadata.week === filtered.metadata.week
-  );
-  if (idx >= 0) {
-    state.weken[idx] = filtered;
-  } else {
-    state.weken.push(filtered);
-    state.weken.sort((a, b) => {
-      if (a.metadata.periode !== b.metadata.periode) return a.metadata.periode - b.metadata.periode;
-      return a.metadata.week - b.metadata.week;
-    });
-  }
+  // Replace all weeks — one active week at a time
+  state.weken = [filtered];
+  state.voortgang = {};
+  state.planning = {};
 
   await save();
 }
