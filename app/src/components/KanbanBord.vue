@@ -811,36 +811,42 @@ function dragRelatedClass(taak) {
 /* ---- Drag highlights ---- */
 
 .kanban-kaart.drag-related-ok {
-  outline: 2px solid #10b981;
-  outline-offset: -2px;
-  animation: drag-pulse-ok 1s ease-in-out infinite;
+  outline: 3px solid #10b981;
+  outline-offset: -1px;
+  background: #ecfdf5 !important;
+  animation: drag-pulse-ok 0.7s ease-in-out infinite;
+  transform: scale(1.02);
 }
 
 .kanban-kaart.drag-related-warn {
-  outline: 2px solid #d97706;
-  outline-offset: -2px;
-  animation: drag-pulse-warn 1s ease-in-out infinite;
+  outline: 3px solid #d97706;
+  outline-offset: -1px;
+  background: #fffbeb !important;
+  animation: drag-pulse-warn 0.7s ease-in-out infinite;
+  transform: scale(1.02);
 }
 
 .kanban-kaart.drag-related-conflict {
-  outline: 2px solid #ef4444;
-  outline-offset: -2px;
-  animation: drag-pulse-conflict 1s ease-in-out infinite;
+  outline: 3px solid #ef4444;
+  outline-offset: -1px;
+  background: #fef2f2 !important;
+  animation: drag-pulse-conflict 0.7s ease-in-out infinite;
+  transform: scale(1.02);
 }
 
 @keyframes drag-pulse-ok {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); }
-  50% { box-shadow: 0 0 8px 2px rgba(16, 185, 129, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 12px 4px rgba(16, 185, 129, 0.4); }
 }
 
 @keyframes drag-pulse-warn {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.3); }
-  50% { box-shadow: 0 0 8px 2px rgba(217, 119, 6, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
+  50% { box-shadow: 0 0 12px 4px rgba(217, 119, 6, 0.4); }
 }
 
 @keyframes drag-pulse-conflict {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
-  50% { box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.4); }
 }
 
 /* ---- Vak cel (expanded content per kolom) ---- */

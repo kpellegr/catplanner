@@ -3,13 +3,14 @@ import * as sync from './sync.js';
 
 // ---- State ----
 
-const DAGEN = ['ma', 'di', 'wo', 'do', 'vr'];
+const DAGEN = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 
 const state = reactive({
   weken: [],
   voortgang: {},
   planning: {},
   lesBlokken: {},
+  weekRooster: { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} },
   loaded: false,
   // Multi-user
   plannerId: null,
@@ -35,13 +36,18 @@ const alleTaken = computed(() => {
         const id = taakId(taak, week.metadata);
         const voortgang = state.voortgang[id] || { status: 'open', minutenGewerkt: 0 };
         if (voortgang.status === 'todo') voortgang.status = 'open';
+        const planVal = state.planning[id] || null;
+        // Support both old format (string "ma") and new format ({ dag: "ma", blok: 5 })
+        const geplandOp = planVal ? (typeof planVal === 'string' ? planVal : planVal.dag) : null;
+        const geplandBlok = planVal && typeof planVal === 'object' ? planVal.blok : null;
         taken.push({
           ...taak,
           id,
           week: week.metadata.week,
           periode: week.metadata.periode,
           voortgang,
-          geplandOp: state.planning[id] || null,
+          geplandOp,
+          geplandBlok,
         });
       }
     }
@@ -108,6 +114,7 @@ async function init(plannerId = null, role = null) {
   state.voortgang = data.voortgang || {};
   state.planning = data.planning || {};
   state.lesBlokken = data.lesBlokken || {};
+  state.weekRooster = data.weekRooster || { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} };
   state.loaded = true;
 
   // Subscribe to realtime changes
@@ -119,6 +126,7 @@ async function init(plannerId = null, role = null) {
     else if (key === 'voortgang') state.voortgang = data || {};
     else if (key === 'planning') state.planning = data || {};
     else if (key === 'lesBlokken') state.lesBlokken = data || {};
+    else if (key === 'weekRooster') state.weekRooster = data || { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} };
   });
 
   return true;
@@ -134,6 +142,7 @@ async function save(key) {
     voortgang: state.voortgang,
     planning: state.planning,
     lesBlokken: state.lesBlokken,
+    weekRooster: state.weekRooster,
   };
 
   const keysToSave = key ? [key] : Object.keys(dataMap);
@@ -230,10 +239,10 @@ async function updateVoortgang(id, update) {
   }
 }
 
-async function planTaak(id, dag) {
+async function planTaak(id, dag, blok = null) {
   if (isReadOnly.value) return;
   if (dag) {
-    state.planning[id] = dag;
+    state.planning[id] = blok !== null ? { dag, blok } : dag;
   } else {
     delete state.planning[id];
   }
@@ -254,6 +263,12 @@ function getLesBlokken(periode, week, dag) {
   return state.lesBlokken[lesBlokKey(periode, week, dag)] || [];
 }
 
+async function saveWeekRooster(rooster) {
+  if (isReadOnly.value) return;
+  state.weekRooster = rooster;
+  await save('weekRooster');
+}
+
 async function verwijderWeek(periode, week) {
   if (isReadOnly.value) return;
   state.weken = state.weken.filter(
@@ -268,6 +283,7 @@ async function resetAlles() {
   state.voortgang = {};
   state.planning = {};
   state.lesBlokken = {};
+  state.weekRooster = { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} };
   await save();
 }
 
@@ -290,6 +306,7 @@ export function usePlanner() {
     planTaak,
     updateLesBlokken,
     getLesBlokken,
+    saveWeekRooster,
     verwijderWeek,
     resetAlles,
   };

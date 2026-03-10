@@ -46,11 +46,17 @@
         <!-- Right: toolbar -->
         <nav>
           <!-- View switcher -->
-          <div v-if="state.weken.length" class="view-switcher">
-            <button :class="{ active: view === 'kanban' }" @click="view = 'kanban'" title="Kanban">
+          <div class="view-switcher">
+            <button v-if="state.weken.length" :class="{ active: view === 'kanban' }" @click="view = 'kanban'" title="Kanban">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="4" height="14" rx="1"/><rect x="6" y="1" width="4" height="9" rx="1"/><rect x="11" y="1" width="4" height="11" rx="1"/></svg>
             </button>
-            <button :class="{ active: view === 'print' }" @click="view = 'print'" title="Afdrukken">
+            <button v-if="state.weken.length" :class="{ active: view === 'weekplan' }" @click="view = 'weekplan'" title="Weekplanner">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="14" height="13" rx="1.5"/><line x1="1" y1="6" x2="15" y2="6"/><line x1="5.5" y1="6" x2="5.5" y2="15"/><line x1="10.5" y1="6" x2="10.5" y2="15"/></svg>
+            </button>
+            <button :class="{ active: view === 'rooster' }" @click="view = 'rooster'" title="Weekrooster">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="14" height="13" rx="1.5"/><line x1="1" y1="6" x2="15" y2="6"/><line x1="5.5" y1="2" x2="5.5" y2="15"/><line x1="10.5" y1="2" x2="10.5" y2="15"/><line x1="1" y1="10" x2="15" y2="10"/></svg>
+            </button>
+            <button v-if="state.weken.length" :class="{ active: view === 'print' }" @click="view = 'print'" title="Afdrukken">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 4 1 12 1 12 6"/><path d="M4 11H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-2"/><rect x="4" y="9" width="8" height="6" rx="1"/></svg>
             </button>
           </div>
@@ -86,6 +92,10 @@
         <FileUpload v-if="view === 'kanban' && !isReadOnly" ref="fileUploadRef" />
 
         <KanbanBord v-if="state.weken.length && view === 'kanban'" />
+
+        <WeekPlanner v-if="state.weken.length && view === 'weekplan'" />
+
+        <WeekRoosterEditor v-if="view === 'rooster'" />
 
         <template v-if="state.weken.length && view === 'print'">
           <div class="print-actions no-print">
@@ -125,6 +135,8 @@ import KanbanBord from './KanbanBord.vue';
 import PrintRapport from './PrintRapport.vue';
 import DeelModal from './DeelModal.vue';
 import NotificatieBel from './NotificatieBel.vue';
+import WeekRoosterEditor from './WeekRoosterEditor.vue';
+import WeekPlanner from './WeekPlanner.vue';
 
 const props = defineProps({
   plannerId: { type: String, default: null },

@@ -62,7 +62,7 @@ export async function loadPlanner(plannerId) {
 
   if (error) throw error;
 
-  const result = { weken: [], voortgang: {}, planning: {}, lesBlokken: {} };
+  const result = { weken: [], voortgang: {}, planning: {}, lesBlokken: {}, weekRooster: { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} } };
   for (const row of data || []) {
     result[row.key] = row.data;
   }
