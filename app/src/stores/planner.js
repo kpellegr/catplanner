@@ -1,4 +1,4 @@
-import { reactive, computed } from 'vue';
+import { reactive, ref, computed } from 'vue';
 import * as sync from './sync.js';
 
 // ---- State ----
@@ -287,6 +287,11 @@ async function resetAlles() {
   await save();
 }
 
+// ---- UI state (not synced, survives component remounts) ----
+
+const wpViewMode = ref('week');   // 'week' | 'dag'
+const wpFocusDag = ref(null);     // 'ma'..'zo', null = vandaag
+
 // ---- Export ----
 
 export function usePlanner() {
@@ -299,6 +304,8 @@ export function usePlanner() {
     STATUSSEN,
     isReadOnly,
     isEigenaar,
+    wpViewMode,
+    wpFocusDag,
     init,
     importStudiewijzerData,
     editTaak,

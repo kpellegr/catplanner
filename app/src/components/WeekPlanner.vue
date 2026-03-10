@@ -65,23 +65,40 @@
       <div class="wp-main">
         <div class="wp-header">
           <h2>Weekplan</h2>
+          <div class="wp-view-toggle">
+            <button :class="{ active: viewMode === 'week' }" @click="viewMode = 'week'" title="Weekoverzicht">Week</button>
+            <button :class="{ active: viewMode === 'dag' }" @click="setDayView()" title="Dagweergave (3 dagen)">Dag</button>
+          </div>
           <span class="wp-deadline">Deadline: zo 21:00</span>
           <button class="wp-action-btn" @click="autoSuggest" title="Rooster-taken automatisch inplannen">Auto</button>
           <button v-if="hasGeplande" class="wp-action-btn wp-reset-btn" @click="resetWeekplan" title="Weekplanning wissen">Reset</button>
         </div>
 
-        <!-- Timeline grid: gutter + 7 day columns -->
+        <!-- Timeline grid: gutter + day columns -->
         <div class="wp-timeline-wrap">
           <!-- Column headers ABOVE the scrollable area -->
           <div class="wp-col-headers">
             <div class="wp-gutter-placeholder"></div>
             <div
-              v-for="dag in dagen"
+              v-for="dag in zichtbareDagen"
               :key="'h-' + dag"
               class="wp-col-header"
-              :class="{ 'is-weekend': dag === 'za' || dag === 'zo', 'is-vandaag': dag === vandaagDag }"
+              :class="{
+                'is-weekend': dag === 'za' || dag === 'zo',
+                'is-vandaag': dag === vandaagDag,
+                'is-focus': viewMode === 'dag',
+              }"
             >
-              <span class="wp-col-naam">{{ dagKort[dag] }}</span>
+              <template v-if="viewMode === 'dag'">
+                <div class="wp-focus-header">
+                  <button class="wp-nav-btn" @click.stop="navigeerDag(-1)" title="Vorige dag">&lsaquo;</button>
+                  <span class="wp-col-naam">{{ dagLang[dag] }}</span>
+                  <button class="wp-nav-btn" @click.stop="navigeerDag(1)" title="Volgende dag">&rsaquo;</button>
+                </div>
+              </template>
+              <template v-else>
+                <span class="wp-col-naam">{{ dagKort[dag] }}</span>
+              </template>
               <span class="wp-col-cap" :class="capaciteitClass(dag)">{{ geplandMinuten(dag) }}' / {{ beschikbareMinuten(dag) }}'</span>
             </div>
           </div>
@@ -97,10 +114,15 @@
 
             <!-- Day columns -->
             <div
-              v-for="dag in dagen"
+              v-for="dag in zichtbareDagen"
               :key="dag"
               class="wp-tl-col"
-              :class="{ 'wp-tl-dragover': dragOverTarget === dag, 'is-weekend': dag === 'za' || dag === 'zo', 'is-vandaag': dag === vandaagDag }"
+              :class="{
+                'wp-tl-dragover': dragOverTarget === dag,
+                'is-weekend': dag === 'za' || dag === 'zo',
+                'is-vandaag': dag === vandaagDag,
+                'is-focus': viewMode === 'dag',
+              }"
               @dragover.prevent="onDragOverTimeline($event, dag)"
               @dragenter.prevent="dragOverTarget = dag"
               @dragleave="onDragLeave($event, dag)"
@@ -177,24 +199,54 @@
                   @dragstart="onDragStart($event, placed.taak)"
                   @dragend="onDragEnd"
                 >
-                  <div class="tl-compact-row">
-                    <button
-                      class="tl-check-btn"
-                      :class="{ checked: placed.taak.voortgang.status === 'klaar' || placed.taak.voortgang.status === 'ingediend' }"
-                      :title="placed.taak.voortgang.status === 'klaar' ? 'Markeer als open' : 'Markeer als klaar'"
-                      @click.stop="toggleKlaar(placed.taak)"
-                    >✓</button>
-                    <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" title="Achterstand!">!</span>
-                    <span class="tl-code">{{ placed.taak.code || kortVak(placed.taak.vak) }}</span>
-                    <span v-if="taakKeten(placed.taak)" class="kaart-keten tl-keten" :title="ketenTooltip(placed.taak)">
-                      <template v-for="(stap, si) in taakKeten(placed.taak)" :key="stap.id">
-                        <span class="keten-stap" :class="[ketenStapKleur(stap, placed.taak), { 'keten-eigen': stap.id === placed.taak.id }]">{{ stap.volgorde }}</span>
-                        <span v-if="si < taakKeten(placed.taak).length - 1" class="keten-pijl">→</span>
-                      </template>
-                    </span>
-                    <span class="tl-duur" :class="{ 'tl-duur-custom': isCustomDuur(placed.taak) }" @dblclick.stop="resetCustomDuur(placed.taak)">{{ formatDuur(placed.taak) }}</span>
-                    <button v-if="placed.taak.voortgang.status !== 'klaar' && placed.taak.voortgang.status !== 'ingediend'" class="tl-unplan" @click.stop="unplan(placed.taak)">&times;</button>
-                  </div>
+                  <!-- Full card in day view (matches kanban card style) -->
+                  <template v-if="viewMode === 'dag'">
+                    <div class="tl-day-card">
+                      <div class="kaart-top">
+                        <button
+                          class="tl-check-btn"
+                          :class="{ checked: placed.taak.voortgang.status === 'klaar' || placed.taak.voortgang.status === 'ingediend' }"
+                          :title="placed.taak.voortgang.status === 'klaar' ? 'Markeer als open' : 'Markeer als klaar'"
+                          @click.stop="toggleKlaar(placed.taak)"
+                        >✓</button>
+                        <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" title="Achterstand!">!</span>
+                        <span v-if="placed.taak.code" class="code">{{ placed.taak.code }}</span>
+                        <span v-if="taakKeten(placed.taak)" class="kaart-keten" :title="ketenTooltip(placed.taak)">
+                          <template v-for="(stap, si) in taakKeten(placed.taak)" :key="stap.id">
+                            <span class="keten-stap" :class="[ketenStapKleur(stap, placed.taak), { 'keten-eigen': stap.id === placed.taak.id }]">{{ stap.volgorde }}</span>
+                            <span v-if="si < taakKeten(placed.taak).length - 1" class="keten-pijl">→</span>
+                          </template>
+                        </span>
+                        <div class="flags">
+                          <span v-for="f in placed.taak.flags" :key="f" class="flag" :title="flagTooltips[f] || f">{{ f }}</span>
+                        </div>
+                        <span class="kaart-duur prominent" :class="{ 'tl-duur-custom': isCustomDuur(placed.taak) }" @dblclick.stop="resetCustomDuur(placed.taak)">{{ formatDuur(placed.taak) }}</span>
+                        <button v-if="placed.taak.voortgang.status !== 'klaar' && placed.taak.voortgang.status !== 'ingediend'" class="tl-unplan" @click.stop="unplan(placed.taak)">&times;</button>
+                      </div>
+                      <p class="kaart-tekst">{{ placed.taak.omschrijving }}</p>
+                    </div>
+                  </template>
+                  <!-- Compact card in week view / side columns -->
+                  <template v-else>
+                    <div class="tl-compact-row">
+                      <button
+                        class="tl-check-btn"
+                        :class="{ checked: placed.taak.voortgang.status === 'klaar' || placed.taak.voortgang.status === 'ingediend' }"
+                        :title="placed.taak.voortgang.status === 'klaar' ? 'Markeer als open' : 'Markeer als klaar'"
+                        @click.stop="toggleKlaar(placed.taak)"
+                      >✓</button>
+                      <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" title="Achterstand!">!</span>
+                      <span class="tl-code">{{ placed.taak.code || kortVak(placed.taak.vak) }}</span>
+                      <span v-if="taakKeten(placed.taak)" class="kaart-keten tl-keten" :title="ketenTooltip(placed.taak)">
+                        <template v-for="(stap, si) in taakKeten(placed.taak)" :key="stap.id">
+                          <span class="keten-stap" :class="[ketenStapKleur(stap, placed.taak), { 'keten-eigen': stap.id === placed.taak.id }]">{{ stap.volgorde }}</span>
+                          <span v-if="si < taakKeten(placed.taak).length - 1" class="keten-pijl">→</span>
+                        </template>
+                      </span>
+                      <span class="tl-duur" :class="{ 'tl-duur-custom': isCustomDuur(placed.taak) }" @dblclick.stop="resetCustomDuur(placed.taak)">{{ formatDuur(placed.taak) }}</span>
+                      <button v-if="placed.taak.voortgang.status !== 'klaar' && placed.taak.voortgang.status !== 'ingediend'" class="tl-unplan" @click.stop="unplan(placed.taak)">&times;</button>
+                    </div>
+                  </template>
                   <!-- Resize handle -->
                   <div
                     v-if="!isReadOnly"
@@ -215,17 +267,45 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { usePlanner } from '../stores/planner.js';
 
-const { state, alleTaken, planTaak, updateVoortgang, isReadOnly } = usePlanner();
+const { state, alleTaken, planTaak, updateVoortgang, isReadOnly, wpViewMode, wpFocusDag } = usePlanner();
 
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
+const dagLang = { ma: 'Maandag', di: 'Dinsdag', wo: 'Woensdag', do: 'Donderdag', vr: 'Vrijdag', za: 'Zaterdag', zo: 'Zondag' };
 const flagTooltips = { P: 'Inleveren op papier', M: 'Materiaal meebrengen', U: 'Uitgestelde deadline', G: 'Groepswerk' };
 
+// ---- View mode (week / dag) — stored in planner store to survive remounts ----
+const viewMode = wpViewMode;
+const focusDag = wpFocusDag;
+
+function setDayView() {
+  viewMode.value = 'dag';
+  if (!focusDag.value) focusDag.value = vandaagDag.value || 'ma';
+}
+
+function navigeerDag(offset) {
+  const idx = dagen.indexOf(focusDag.value);
+  const newIdx = Math.max(0, Math.min(dagen.length - 1, idx + offset));
+  focusDag.value = dagen[newIdx];
+}
+
+const zichtbareDagen = computed(() => {
+  if (viewMode.value === 'week') return dagen;
+  const dag = focusDag.value || vandaagDag.value || 'ma';
+  return [dag];
+});
+
+function colFlex() {
+  return {};
+}
+
 // ---- Timeline constants ----
-const BLOK_PX = 22;          // pixels per 15-min block (~half day on screen)
+const BLOK_PX_WEEK = 22;
+const BLOK_PX_DAG = 36;
+const BLOK_PX = computed(() => viewMode.value === 'dag' ? BLOK_PX_DAG : BLOK_PX_WEEK);
 const BLOKKEN_PER_UUR = 4;   // 4 × 15 min = 60 min
 const TOTAL_BLOKKEN = 14 * BLOKKEN_PER_UUR; // 56 blocks
-const TOTAL_PX = TOTAL_BLOKKEN * BLOK_PX;   // 1232px
+const TOTAL_PX = computed(() => TOTAL_BLOKKEN * BLOK_PX.value);
 
 // Deadline line: 21:00 on the timeline
 // Timeline starts at 8:30 (h=1). Hour h covers (7+h):30 to (8+h):30
@@ -352,8 +432,8 @@ function roosterSlots(dag) {
 function slotStyle(slot) {
   const startBlok = (slot.uur - 1) * BLOKKEN_PER_UUR;
   return {
-    top: startBlok * BLOK_PX + 'px',
-    height: BLOKKEN_PER_UUR * BLOK_PX + 'px',
+    top: startBlok * BLOK_PX.value + 'px',
+    height: BLOKKEN_PER_UUR * BLOK_PX.value + 'px',
   };
 }
 
@@ -522,7 +602,6 @@ function geplaatstetaken(dag) {
     const blokken = taakBlokken(taak);
 
     if (taak.geplandBlok !== null && taak.geplandBlok !== undefined) {
-      // Use saved position, but ensure no overlap
       let blok = taak.geplandBlok;
       if (overlapsWith(result, blok, blokken, taak.id)) {
         blok = findNonOverlapping(result, blok, blokken, taak.id);
@@ -808,7 +887,7 @@ function onDragOverTimeline(e, dag) {
   if (!body) return;
   const rect = body.getBoundingClientRect();
   const y = e.clientY - rect.top;
-  const blok = Math.max(0, Math.min(TOTAL_BLOKKEN - 1, Math.floor(y / BLOK_PX)));
+  const blok = Math.max(0, Math.min(TOTAL_BLOKKEN - 1, Math.floor(y / BLOK_PX.value)));
   dropBlok.value = blok;
 }
 
@@ -1014,7 +1093,7 @@ function onResizeMove(e) {
   if (!resizing.value) return;
   const dy = e.clientY - resizing.value.startY;
   // 5-minute increments: each pixel step = BLOK_PX/3 (since 15min/3 = 5min)
-  const pxPer5Min = BLOK_PX / 3;
+  const pxPer5Min = BLOK_PX.value / 3;
   const delta5 = Math.round(dy / pxPer5Min) * 5;
   const newMinuten = Math.max(5, resizing.value.startMinuten + delta5);
   // Live preview: temporarily update voortgang
@@ -1043,7 +1122,9 @@ const now = ref(new Date());
 let nowTimer = null;
 
 onMounted(() => {
-  nowTimer = setInterval(() => { now.value = new Date(); }, 60000); // update every minute
+  nowTimer = setInterval(() => { now.value = new Date(); }, 60000);
+  // Set focusDag to today only on first visit
+  if (!focusDag.value && vandaagDag.value) focusDag.value = vandaagDag.value;
 });
 onUnmounted(() => {
   if (nowTimer) clearInterval(nowTimer);
@@ -1102,6 +1183,27 @@ function isOverdue(taak) {
 }
 .wp-action-btn:hover { border-color: var(--clr-accent); color: var(--clr-accent); background: var(--clr-accent-light); }
 .wp-action-btn.wp-reset-btn:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
+
+/* View toggle */
+.wp-view-toggle {
+  display: inline-flex; border: 1px solid var(--clr-border); border-radius: 6px; overflow: hidden;
+}
+.wp-view-toggle button {
+  padding: 0.25rem 0.6rem; border: none; background: var(--clr-surface); cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: var(--clr-text-muted); transition: all 0.15s;
+}
+.wp-view-toggle button + button { border-left: 1px solid var(--clr-border); }
+.wp-view-toggle button.active { background: var(--clr-accent); color: white; }
+.wp-view-toggle button:hover:not(.active) { background: var(--clr-accent-light); color: var(--clr-accent); }
+
+/* Day nav */
+.wp-nav-btn {
+  width: 28px; height: 28px; border: 1px solid var(--clr-border); border-radius: 6px;
+  background: var(--clr-surface); cursor: pointer; font-size: 1.1rem; font-weight: 700;
+  color: var(--clr-text-muted); display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.15s; padding: 0;
+}
+.wp-nav-btn:hover { border-color: var(--clr-accent); color: var(--clr-accent); background: var(--clr-accent-light); }
 
 /* ---- Column headers (above scroll area) ---- */
 .wp-timeline-wrap { border: 1px solid var(--clr-border); border-radius: var(--radius); background: var(--clr-surface); overflow: hidden; }
@@ -1169,6 +1271,20 @@ function isOverdue(taak) {
 .wp-tl-col:first-of-type { border-left: none; }
 .wp-tl-col.is-weekend { background: rgba(0,0,0,0.025); }
 .wp-tl-col.wp-tl-dragover { background: rgba(99, 102, 241, 0.04); }
+
+
+/* Focus column styling */
+.wp-col-header.is-focus {
+  background: rgba(99, 102, 241, 0.1);
+  border-bottom: 2px solid var(--clr-accent);
+}
+.wp-col-header.is-focus .wp-col-naam { font-size: 0.9rem; color: var(--clr-accent); }
+
+.wp-focus-header {
+  display: flex; align-items: center; gap: 0.4rem; justify-content: center; width: 100%;
+}
+.wp-focus-header .wp-nav-btn { width: 22px; height: 22px; font-size: 0.9rem; }
+.wp-focus-header .wp-col-naam { font-size: 0.9rem; }
 
 /* Timeline body — light grey base so bands pop */
 .wp-tl-body {
@@ -1375,6 +1491,22 @@ function isOverdue(taak) {
 
 .tl-keten { font-size: 0.55rem; }
 .tl-keten .keten-stap { width: 0.9rem; height: 0.9rem; font-size: 0.5rem; }
+
+/* Day view card (reuses kanban card styles: .kaart-top, .code, .flags, .kaart-duur, .kaart-tekst) */
+.tl-day-card {
+  width: 100%; min-width: 0;
+}
+.tl-day-card .kaart-top { margin-bottom: 0.15rem; }
+.tl-day-card .kaart-tekst { -webkit-line-clamp: 2; }
+/* Focus column: cards get more room */
+.is-focus .wp-tl-taak {
+  padding: 3px 8px;
+  font-size: 0.8rem;
+  min-height: 48px;
+}
+.is-focus .tl-code { font-size: 0.8rem; }
+.is-focus .tl-duur { font-size: 0.7rem; }
+.is-focus .tl-check-btn { width: 16px; height: 16px; font-size: 0.6rem; }
 
 .tl-unplan {
   background: none; border: none; font-size: 0.8rem; cursor: pointer;
