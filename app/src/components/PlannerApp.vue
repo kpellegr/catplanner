@@ -72,6 +72,10 @@ import StatsBar from './StatsBar.vue';
 import PrintRapport from './PrintRapport.vue';
 import DeelModal from './DeelModal.vue';
 
+const props = defineProps({
+  plannerId: { type: String, default: null },
+});
+
 const { state, isReadOnly, isEigenaar, resetAlles, init } = usePlanner();
 const auth = useAuth();
 
@@ -128,8 +132,8 @@ async function onLogout() {
 }
 
 onMounted(async () => {
-  if (!state.loaded) {
-    await init();
+  if (!state.loaded || (props.plannerId && state.plannerId !== props.plannerId)) {
+    await init(props.plannerId);
   }
 });
 </script>

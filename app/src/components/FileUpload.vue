@@ -15,11 +15,11 @@
 
 <script setup>
 import { ref } from 'vue';
-import { parseStudiewijzer, filterVoorDaan } from '../lib/parser.js';
+import { parseStudiewijzer, filterVoorProfiel, filterVoorDaan } from '../lib/parser.js';
 import { usePlanner } from '../stores/planner.js';
 import ImportPreview from './ImportPreview.vue';
 
-const { importStudiewijzerData } = usePlanner();
+const { state, importStudiewijzerData } = usePlanner();
 const preview = ref(null);
 const pendingQueue = ref([]);
 
@@ -27,7 +27,9 @@ async function processFiles(files) {
   for (const file of files) {
     const text = await file.text();
     const parsed = parseStudiewijzer(text);
-    const filtered = filterVoorDaan(parsed);
+    const filtered = state.studentProfile
+      ? filterVoorProfiel(parsed, state.studentProfile)
+      : filterVoorDaan(parsed);
     pendingQueue.value.push(filtered);
   }
   // Show first pending preview
@@ -66,7 +68,8 @@ function herstelTaak(taak) {
   const { filterReden, ...cleanTaak } = taak;
   // Resolve route-specific times for restored tasks
   if (cleanTaak.tijd && cleanTaak.tijd.type === 'minuten_per_route') {
-    cleanTaak.tijd = { type: 'minuten', minuten: cleanTaak.tijd.Z };
+    const routeKey = state.studentProfile?.route?.toUpperCase() || 'Z';
+    cleanTaak.tijd = { type: 'minuten', minuten: cleanTaak.tijd[routeKey] || cleanTaak.tijd.Z || cleanTaak.tijd.B };
   }
   section.taken.push(cleanTaak);
 }

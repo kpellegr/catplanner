@@ -1,22 +1,55 @@
 import { supabase } from '../lib/supabase.js';
 
-// ---- Find or create planner ----
+// ---- User profile ----
 
-export async function findMyPlanner() {
-  const { data, error } = await supabase
-    .from('planner_members')
-    .select('planner_id, role, planners(naam)')
-    .limit(1)
-    .single();
-
-  if (error || !data) return null;
-  return { plannerId: data.planner_id, role: data.role, naam: data.planners?.naam };
+export async function getMyProfile() {
+  const { data, error } = await supabase.rpc('get_my_profile');
+  if (error) throw error;
+  return data; // { user_type, display_name } or null
 }
 
-export async function createPlanner(naam = 'Mijn planning') {
-  const { data, error } = await supabase.rpc('create_planner', { p_naam: naam });
+export async function createUserProfile(userType, displayName = null) {
+  const { error } = await supabase.rpc('create_user_profile', {
+    p_user_type: userType,
+    p_display_name: displayName,
+  });
+  if (error) throw error;
+}
+
+// ---- Planners ----
+
+export async function getMyPlanners() {
+  const { data, error } = await supabase.rpc('get_my_planners');
+  if (error) throw error;
+  return data || []; // [{ planner_id, planner_naam, role, student_profile }]
+}
+
+export async function findMyPlanner() {
+  const planners = await getMyPlanners();
+  if (!planners.length) return null;
+  const p = planners[0];
+  return { plannerId: p.planner_id, role: p.role, naam: p.planner_naam };
+}
+
+export async function createPlanner(naam = 'Mijn planning', studentProfile = null) {
+  const { data, error } = await supabase.rpc('create_planner', {
+    p_naam: naam,
+    p_student_profile: studentProfile,
+  });
   if (error) throw error;
   return data; // returns planner UUID
+}
+
+// ---- Get planner info (including student_profile) ----
+
+export async function getPlannerInfo(plannerId) {
+  const { data, error } = await supabase
+    .from('planners')
+    .select('id, naam, student_profile')
+    .eq('id', plannerId)
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 // ---- Load all data for a planner ----

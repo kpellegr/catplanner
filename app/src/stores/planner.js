@@ -14,6 +14,7 @@ const state = reactive({
   // Multi-user
   plannerId: null,
   userRole: null,  // 'eigenaar' | 'editor' | 'viewer'
+  studentProfile: null, // { naam, richting, route, wiskunde }
 });
 
 let unsubscribe = null;
@@ -79,18 +80,27 @@ const stats = computed(() => {
   };
 });
 
-// ---- Init (called after auth) ----
+// ---- Init (called with a specific planner) ----
 
-async function init() {
-  // Find existing planner or create one
-  let info = await sync.findMyPlanner();
-  if (!info) {
-    const id = await sync.createPlanner();
-    info = { plannerId: id, role: 'eigenaar' };
+async function init(plannerId = null, role = null) {
+  // If no planner specified, try to find one (but don't auto-create)
+  if (!plannerId) {
+    const info = await sync.findMyPlanner();
+    if (!info) return false; // no planner found
+    plannerId = info.plannerId;
+    role = info.role;
   }
 
-  state.plannerId = info.plannerId;
-  state.userRole = info.role;
+  state.plannerId = plannerId;
+  state.userRole = role || 'eigenaar';
+
+  // Load planner info (including student profile)
+  try {
+    const info = await sync.getPlannerInfo(plannerId);
+    state.studentProfile = info?.student_profile || null;
+  } catch (e) {
+    console.warn('Could not load planner info:', e);
+  }
 
   // Load data
   const data = await sync.loadPlanner(state.plannerId);
@@ -110,6 +120,8 @@ async function init() {
     else if (key === 'planning') state.planning = data || {};
     else if (key === 'lesBlokken') state.lesBlokken = data || {};
   });
+
+  return true;
 }
 
 // ---- Persistence ----
