@@ -205,15 +205,7 @@ const vakken = computed(() => {
 function formatDuur(taak) {
   if (!taak.tijd) return '';
   if (taak.tijd.type === 'rooster') return 'R';
-  if (taak.tijd.type === 'minuten') {
-    const m = taak.tijd.minuten;
-    if (m >= 60) {
-      const u = Math.floor(m / 60);
-      const rest = m % 60;
-      return rest ? `${u}u${rest}'` : `${u}u`;
-    }
-    return `${m}'`;
-  }
+  if (taak.tijd.type === 'minuten') return `${taak.tijd.minuten}'`;
   return '';
 }
 
@@ -249,7 +241,7 @@ function vakKolomTaken(vakNaam, status) {
 }
 
 function isVakOpen(vakNaam) {
-  return openVakken[vakNaam] === true; // collapsed by default
+  return openVakken[vakNaam] !== false; // expanded by default
 }
 
 function toggleVak(vakNaam) {
@@ -257,7 +249,7 @@ function toggleVak(vakNaam) {
 }
 
 const allesOpen = computed(() => {
-  return vakken.value.length > 0 && vakken.value.every((v) => openVakken[v.naam]);
+  return vakken.value.length > 0 && vakken.value.every((v) => openVakken[v.naam] !== false);
 });
 
 function toggleAlles() {

@@ -9,7 +9,6 @@
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" style="stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;">
         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
         <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        <circle v-if="subscribed" cx="18" cy="5" r="3" fill="#22c55e" style="stroke: none;" />
       </svg>
     </button>
     <div v-if="iosTip" class="ios-tip">
@@ -73,20 +72,25 @@ async function toggle() {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 2rem !important;
-  height: 2rem !important;
+  width: 3rem !important;
+  height: 3rem !important;
   padding: 0 !important;
   border: 1px solid var(--clr-border, #ddd) !important;
-  border-radius: 0.4rem !important;
+  border-radius: var(--radius, 10px) !important;
   background: var(--clr-surface, #fff) !important;
   cursor: pointer;
   color: var(--clr-text-muted, #888) !important;
   transition: all 0.15s;
 }
 
-.bel-btn:hover,
-.bel-btn.active {
+.bel-btn:hover {
   color: var(--clr-accent, #6366f1) !important;
+  border-color: var(--clr-accent, #6366f1) !important;
+}
+
+.bel-btn.active {
+  color: white !important;
+  background: var(--clr-accent, #6366f1) !important;
   border-color: var(--clr-accent, #6366f1) !important;
 }
 

@@ -62,75 +62,10 @@ header h1 {
   margin: 0;
 }
 
-.header-titel {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
-.header-datum {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--clr-text-muted);
-}
-
-.header-upload {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: 1.5px dashed var(--clr-border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  color: var(--clr-text-muted);
-  transition: all 0.15s;
-}
-
-.header-upload:hover {
-  border-color: var(--clr-accent);
-  color: var(--clr-accent);
-  background: var(--clr-accent-light);
-}
-
 nav {
   display: flex;
-  gap: 0.5rem;
-}
-
-nav button {
-  background: var(--clr-surface);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  color: var(--clr-text-muted);
-  transition: all 0.15s;
-}
-
-nav button.active {
-  background: var(--clr-accent);
-  color: white;
-  border-color: var(--clr-accent);
-}
-
-nav button:hover:not(.active) {
-  border-color: var(--clr-accent);
-  color: var(--clr-text);
-}
-
-nav .btn-reset {
-  margin-left: 0.5rem;
-  color: #ef4444;
-  border-color: #fecaca;
-}
-
-nav .btn-reset:hover {
-  background: #fee2e2;
-  border-color: #ef4444;
-  color: #ef4444;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 /* ---- Stats ---- */
