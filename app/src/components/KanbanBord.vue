@@ -426,24 +426,36 @@ function fireConfetti() {
 
 // ---- Volgtijdelijkheid ----
 
-// Per vak: gesorteerde ketens van taken met volgorde
+// Per vak: meerdere ketens van taken met volgorde
+// Ketens worden gesplitst wanneer de nummering reset (1,2,1,2 = twee ketens)
 const volgordeKetens = computed(() => {
-  const map = new Map();
+  const result = []; // array van ketens (elke keten is een array van taken)
   for (const vak of vakken.value) {
-    const metVolgorde = vak.taken
+    const metVolgorde = [...vak.taken]
       .filter(t => typeof t.volgorde === 'number')
-      .sort((a, b) => a.volgorde - b.volgorde);
-    if (metVolgorde.length > 1) {
-      map.set(vak.naam, metVolgorde);
+      .sort((a, b) => (a.origIndex ?? 0) - (b.origIndex ?? 0)); // fysieke volgorde
+
+    if (metVolgorde.length < 2) continue;
+
+    // Split in ketens: als volgorde-nummer niet stijgt, start een nieuwe keten
+    let huidigeKeten = [metVolgorde[0]];
+    for (let i = 1; i < metVolgorde.length; i++) {
+      if (metVolgorde[i].volgorde > metVolgorde[i - 1].volgorde) {
+        huidigeKeten.push(metVolgorde[i]);
+      } else {
+        if (huidigeKeten.length > 1) result.push(huidigeKeten);
+        huidigeKeten = [metVolgorde[i]];
+      }
     }
+    if (huidigeKeten.length > 1) result.push(huidigeKeten);
   }
-  return map;
+  return result;
 });
 
 // Lookup: taak-id → set van gerelateerde taak-ids (hele keten)
 const relatedIds = computed(() => {
   const lookup = new Map();
-  for (const [, keten] of volgordeKetens.value) {
+  for (const keten of volgordeKetens.value) {
     const ids = keten.map(t => t.id);
     for (const id of ids) {
       lookup.set(id, new Set(ids));
@@ -455,7 +467,7 @@ const relatedIds = computed(() => {
 // Lookup: taak-id → voorganger (de taak die eerst klaar moet zijn)
 const voorgangerMap = computed(() => {
   const map = new Map();
-  for (const [, keten] of volgordeKetens.value) {
+  for (const keten of volgordeKetens.value) {
     for (let i = 1; i < keten.length; i++) {
       map.set(keten[i].id, keten[i - 1]);
     }
@@ -466,7 +478,7 @@ const voorgangerMap = computed(() => {
 // Per taak-id → de keten waar die in zit (of null)
 const taakKetenMap = computed(() => {
   const map = new Map();
-  for (const [, keten] of volgordeKetens.value) {
+  for (const keten of volgordeKetens.value) {
     for (const t of keten) {
       map.set(t.id, keten);
     }
