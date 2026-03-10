@@ -64,67 +64,25 @@
           @dragleave="dragLeaveCel($event, vak.naam, kolom.status)"
           @drop="drop($event, kolom.status)"
         >
-          <template v-if="kolom.compact">
-            <div
-              v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
-              :key="taak.id"
-              class="kanban-kaart compact"
-              :class="[hoofdgroepClass(taak), dragRelatedClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster', expanded: expandedKaarten[taak.id] }]"
-              :data-taak-id="taak.id"
-              :draggable="!isReadOnly"
-              @dragstart="!isReadOnly && dragStart($event, taak)"
-              @dragend="dragEnd"
-              @click="toggleKaart(taak.id)"
-              @dblclick.stop="!isReadOnly && openEdit(taak)"
-            >
-              <div class="kaart-compact-row">
-                <span v-if="taak.code" class="code">{{ taak.code }}</span>
-                <span v-if="taakKeten(taak)" class="kaart-keten" :title="ketenTooltip(taak)">
-                  <template v-for="(stap, si) in taakKeten(taak)" :key="stap.id">
-                    <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
-                    <span v-if="si < taakKeten(taak).length - 1" class="keten-pijl">→</span>
-                  </template>
-                </span>
-                <span class="kaart-duur" :title="duurTooltip(taak)">{{ formatDuur(taak) }}</span>
-              </div>
-              <div v-if="expandedKaarten[taak.id]" class="kaart-expand">
-                <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
-                <div class="kaart-meta">
-                  <div class="flags">
-                    <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagTooltip(flag)">{{ flag }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <div
-              v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
-              :key="taak.id"
-              class="kanban-kaart"
-              :class="[hoofdgroepClass(taak), dragRelatedClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster' }]"
-              :data-taak-id="taak.id"
-              :draggable="!isReadOnly"
-              @dragstart="!isReadOnly && dragStart($event, taak)"
-              @dragend="dragEnd"
-              @dblclick="!isReadOnly && openEdit(taak)"
-            >
-              <div class="kaart-top">
-                <span v-if="taak.code" class="code">{{ taak.code }}</span>
-                <span v-if="taakKeten(taak)" class="kaart-keten" :title="ketenTooltip(taak)">
-                  <template v-for="(stap, si) in taakKeten(taak)" :key="stap.id">
-                    <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
-                    <span v-if="si < taakKeten(taak).length - 1" class="keten-pijl">→</span>
-                  </template>
-                </span>
-                <div class="flags">
-                  <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagTooltip(flag)">{{ flag }}</span>
-                </div>
-                <span class="kaart-duur prominent" :title="duurTooltip(taak)">{{ formatDuur(taak) }}</span>
-              </div>
-              <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
-            </div>
-          </template>
+          <TaakKaart
+            v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
+            :key="taak.id"
+            :taak="taak"
+            :compact="kolom.compact"
+            :is-expanded="!!expandedKaarten[taak.id]"
+            :draggable="!isReadOnly"
+            :is-dragging="draggingTaak?.id === taak.id"
+            :drag-related-class="dragRelatedClass(taak)"
+            :keten="taakKeten(taak)"
+            :keten-tooltip-text="ketenTooltip(taak)"
+            :keten-stap-kleur="ketenStapKleur"
+            :duur-text="formatDuur(taak)"
+            :duur-tooltip-text="duurTooltip(taak)"
+            @dragstart="(e) => !isReadOnly && dragStart(e, taak)"
+            @dragend="dragEnd"
+            @click="kolom.compact ? toggleKaart(taak.id) : null"
+            @dblclick="!isReadOnly && openEdit(taak)"
+          />
         </div>
       </template>
     </template>
@@ -165,6 +123,8 @@
 <script setup>
 import { ref, reactive, computed } from 'vue';
 import { usePlanner } from '../stores/planner.js';
+import { hoofdgroepClass, formatDuur, duurTooltip, flagTooltip, flagTooltips, useVakGroepen, useVolgordeKetens, useDragRelated } from '../composables/useTakenLogic.js';
+import TaakKaart from './TaakKaart.vue';
 
 const { alleTaken, updateVoortgang, editTaak, isReadOnly } = usePlanner();
 
@@ -175,7 +135,6 @@ const dragOverStatus = ref(null);
 const draggingTaak = ref(null);
 const confettiCanvas = ref(null);
 const expandedKaarten = reactive({});
-const openVakken = reactive({});
 const editingTaak = ref(null);
 const editForm = reactive({ code: '', vak: '', omschrijving: '', minuten: 0 });
 
@@ -204,43 +163,8 @@ const totaalMinuten = computed(() => {
   }, 0);
 });
 
-// All unique vakken, sorted alphabetically
-const vakken = computed(() => {
-  const map = new Map();
-  for (const taak of gefilterdeTaken.value) {
-    const vak = taak.vak || '';
-    if (!map.has(vak)) map.set(vak, []);
-    map.get(vak).push(taak);
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([naam, taken]) => ({ naam, taken }));
-});
-
-const flagTooltips = {
-  P: 'Inleveren op papier',
-  M: 'Materiaal meebrengen',
-  U: 'Uitgestelde deadline',
-  G: 'Groepswerk',
-};
-
-function flagTooltip(flag) {
-  return flagTooltips[flag] || flag;
-}
-
-function formatDuur(taak) {
-  if (!taak.tijd) return '';
-  if (taak.tijd.type === 'rooster') return 'R';
-  if (taak.tijd.type === 'minuten') return `${taak.tijd.minuten}'`;
-  return '';
-}
-
-function duurTooltip(taak) {
-  if (!taak.tijd) return '';
-  if (taak.tijd.type === 'rooster') return 'Roosteruur';
-  if (taak.tijd.type === 'minuten') return `${taak.tijd.minuten} minuten`;
-  return '';
-}
+// All unique vakken, sorted alphabetically — via composable
+const { vakken, isVakOpen, toggleVak, allesOpen, toggleAlles, vakMinuten } = useVakGroepen(gefilterdeTaken);
 
 function basisSort(a, b) {
   const codeA = (a.code || '').toUpperCase();
@@ -260,49 +184,14 @@ function kolomMinuten(status) {
   }, 0);
 }
 
-function vakMinuten(taken) {
-  return taken.reduce((sum, t) => {
-    if (t.tijd?.type === 'minuten') return sum + t.tijd.minuten;
-    return sum;
-  }, 0);
-}
-
 function vakKolomTaken(vakNaam, status) {
   return gefilterdeTaken.value
     .filter((t) => (t.vak || '') === vakNaam && t.voortgang.status === status)
     .sort(basisSort);
 }
 
-function isVakOpen(vakNaam) {
-  return openVakken[vakNaam] !== false; // expanded by default
-}
-
-function toggleVak(vakNaam) {
-  openVakken[vakNaam] = !openVakken[vakNaam];
-}
-
-const allesOpen = computed(() => {
-  return vakken.value.length > 0 && vakken.value.every((v) => openVakken[v.naam] !== false);
-});
-
-function toggleAlles() {
-  const open = !allesOpen.value;
-  for (const vak of vakken.value) {
-    openVakken[vak.naam] = open;
-  }
-}
-
 function toggleKaart(id) {
   expandedKaarten[id] = !expandedKaarten[id];
-}
-
-function hoofdgroepClass(taak) {
-  const hg = (taak.hoofdgroep || '').toUpperCase();
-  if (hg.includes('WETENSCHAP')) return 'hg-wetenschap';
-  if (hg.includes('TALEN')) return 'hg-talen';
-  if (hg.includes('WISKUNDE')) return 'hg-wiskunde';
-  if (hg.includes('PROJECT')) return 'hg-project';
-  return 'hg-algemeen';
 }
 
 // ---- Edit ----
@@ -424,78 +313,9 @@ function fireConfetti() {
   animate();
 }
 
-// ---- Volgtijdelijkheid ----
+// ---- Volgtijdelijkheid — via composable ----
 
-// Per vak: meerdere ketens van taken met volgorde
-// Ketens worden gesplitst wanneer de nummering reset (1,2,1,2 = twee ketens)
-const volgordeKetens = computed(() => {
-  const result = []; // array van ketens (elke keten is een array van taken)
-  for (const vak of vakken.value) {
-    const metVolgorde = [...vak.taken]
-      .filter(t => typeof t.volgorde === 'number')
-      .sort((a, b) => (a.origIndex ?? 0) - (b.origIndex ?? 0)); // fysieke volgorde
-
-    if (metVolgorde.length < 2) continue;
-
-    // Split in ketens: als volgorde-nummer niet stijgt, start een nieuwe keten
-    let huidigeKeten = [metVolgorde[0]];
-    for (let i = 1; i < metVolgorde.length; i++) {
-      if (metVolgorde[i].volgorde > metVolgorde[i - 1].volgorde) {
-        huidigeKeten.push(metVolgorde[i]);
-      } else {
-        if (huidigeKeten.length > 1) result.push(huidigeKeten);
-        huidigeKeten = [metVolgorde[i]];
-      }
-    }
-    if (huidigeKeten.length > 1) result.push(huidigeKeten);
-  }
-  return result;
-});
-
-// Lookup: taak-id → set van gerelateerde taak-ids (hele keten)
-const relatedIds = computed(() => {
-  const lookup = new Map();
-  for (const keten of volgordeKetens.value) {
-    const ids = keten.map(t => t.id);
-    for (const id of ids) {
-      lookup.set(id, new Set(ids));
-    }
-  }
-  return lookup;
-});
-
-// Lookup: taak-id → voorganger (de taak die eerst klaar moet zijn)
-const voorgangerMap = computed(() => {
-  const map = new Map();
-  for (const keten of volgordeKetens.value) {
-    for (let i = 1; i < keten.length; i++) {
-      map.set(keten[i].id, keten[i - 1]);
-    }
-  }
-  return map;
-});
-
-// Per taak-id → de keten waar die in zit (of null)
-const taakKetenMap = computed(() => {
-  const map = new Map();
-  for (const keten of volgordeKetens.value) {
-    for (const t of keten) {
-      map.set(t.id, keten);
-    }
-  }
-  return map;
-});
-
-function taakKeten(taak) {
-  return taakKetenMap.value.get(taak.id) || null;
-}
-
-function ketenTooltip(taak) {
-  const keten = taakKeten(taak);
-  if (!keten) return '';
-  const stappen = keten.map(t => t.code || `#${t.volgorde}`).join(' → ');
-  return `Volgorde: ${stappen}`;
-}
+const { taakKetenMap, taakKeten, ketenTooltip, relatedIds } = useVolgordeKetens(vakken);
 
 const statusRank = { open: 0, bezig: 1, klaar: 2, ingediend: 3 };
 
@@ -517,51 +337,19 @@ function ketenStapKleur(stap, kaart) {
   const status = effectieveStatus(stap);
   const rank = statusRank[status] ?? 0;
 
-  // Niet gestart → grijs
   if (rank === 0) return 'keten-grijs';
-  // Eerste stap, gestart → altijd ok
   if (idx === 0) return 'keten-groen';
 
   const voorganger = keten[idx - 1];
   const vStatus = effectieveStatus(voorganger);
   const vRank = statusRank[vStatus] ?? 0;
 
-  // Voorganger is strikt verder → groen (geen conflict)
   if (vRank > rank) return 'keten-groen';
-  // Beiden in dezelfde fase: alleen oranje als ze allebei bezig zijn
   if (vRank === rank) return rank === 1 ? 'keten-oranje' : 'keten-groen';
-  // Taak staat verder dan voorganger → rood (conflict)
   return 'keten-rood';
 }
 
-function isRelatedToDrag(taakId) {
-  if (!draggingTaak.value) return false;
-  const related = relatedIds.value.get(draggingTaak.value.id);
-  return related?.has(taakId) && taakId !== draggingTaak.value.id;
-}
-
-function isVoorgangerKlaar(taakId) {
-  const voorganger = voorgangerMap.value.get(taakId);
-  if (!voorganger) return true;
-  return voorganger.voortgang.status === 'klaar' || voorganger.voortgang.status === 'ingediend';
-}
-
-function dragRelatedClass(taak) {
-  if (!isRelatedToDrag(taak.id)) return '';
-  // Check of de drag een conflict veroorzaakt in de keten
-  const keten = taakKetenMap.value.get(taak.id);
-  if (!keten) return 'drag-related-ok';
-  // Kijk of er ergens in de keten een conflict is
-  let worstLevel = 0; // 0=ok, 1=oranje, 2=rood
-  for (let i = 1; i < keten.length; i++) {
-    const kleur = ketenStapKleur(keten[i], keten[i]);
-    if (kleur === 'keten-rood') worstLevel = 2;
-    else if (kleur === 'keten-oranje' && worstLevel < 2) worstLevel = 1;
-  }
-  if (worstLevel === 2) return 'drag-related-conflict';
-  if (worstLevel === 1) return 'drag-related-warn';
-  return 'drag-related-ok';
-}
+const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenMap, ketenStapKleur);
 </script>
 
 <style scoped>
@@ -754,100 +542,7 @@ function dragRelatedClass(taak) {
 .mini-klaar { color: var(--clr-klaar); }
 .mini-ingediend { color: var(--clr-accent); }
 
-/* ---- Sequentie-ketting op kaart ---- */
-
-.kaart-keten {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  font-size: 0.65rem;
-  font-weight: 700;
-}
-
-.keten-stap {
-  width: 1.2rem;
-  height: 1.2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  background: var(--clr-bg);
-  color: var(--clr-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.keten-stap.keten-eigen {
-  outline: 2px solid currentColor;
-  outline-offset: -1px;
-  font-weight: 900;
-}
-
-.keten-grijs {
-  background: var(--clr-bg);
-  color: var(--clr-text-muted);
-}
-
-.keten-groen {
-  background: #ecfdf5;
-  color: #059669;
-}
-
-.keten-oranje {
-  background: #fffbeb;
-  color: #d97706;
-}
-
-.keten-rood {
-  background: #fef2f2;
-  color: #dc2626;
-}
-
-.keten-pijl {
-  color: var(--clr-text-muted);
-  opacity: 0.4;
-  font-size: 0.55rem;
-}
-
-/* ---- Drag highlights ---- */
-
-.kanban-kaart.drag-related-ok {
-  outline: 3px solid #10b981;
-  outline-offset: -1px;
-  background: #ecfdf5 !important;
-  animation: drag-pulse-ok 0.7s ease-in-out infinite;
-  transform: scale(1.02);
-}
-
-.kanban-kaart.drag-related-warn {
-  outline: 3px solid #d97706;
-  outline-offset: -1px;
-  background: #fffbeb !important;
-  animation: drag-pulse-warn 0.7s ease-in-out infinite;
-  transform: scale(1.02);
-}
-
-.kanban-kaart.drag-related-conflict {
-  outline: 3px solid #ef4444;
-  outline-offset: -1px;
-  background: #fef2f2 !important;
-  animation: drag-pulse-conflict 0.7s ease-in-out infinite;
-  transform: scale(1.02);
-}
-
-@keyframes drag-pulse-ok {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(16, 185, 129, 0.4); }
-}
-
-@keyframes drag-pulse-warn {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(217, 119, 6, 0.4); }
-}
-
-@keyframes drag-pulse-conflict {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.4); }
-}
+/* Chain and drag highlight CSS now in TaakKaart.vue */
 
 /* ---- Vak cel (expanded content per kolom) ---- */
 
@@ -876,114 +571,7 @@ function dragRelatedClass(taak) {
   background: var(--clr-accent-light);
 }
 
-/* ---- Kanban Kaart (full) ---- */
-
-.kanban-kaart {
-  background: var(--clr-surface);
-  border-radius: 8px;
-  padding: 0.6rem 0.75rem;
-  box-shadow: var(--shadow);
-  border-left: 3px solid var(--clr-todo);
-  cursor: grab;
-  transition: box-shadow 0.15s, opacity 0.15s, transform 0.15s;
-  user-select: none;
-}
-
-.kanban-kaart:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-}
-
-.kanban-kaart.dragging {
-  opacity: 0.5;
-  transform: rotate(1deg);
-}
-
-.kanban-kaart.hg-wetenschap { border-left-color: var(--clr-wetenschap); }
-.kanban-kaart.hg-talen { border-left-color: var(--clr-talen); }
-.kanban-kaart.hg-wiskunde { border-left-color: var(--clr-wiskunde); }
-.kanban-kaart.hg-project { border-left-color: var(--clr-project); }
-
-.kanban-kaart.is-rooster {
-  border-left-style: dashed;
-}
-
-.kaart-top {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.3rem;
-}
-
-.kaart-top .flags {
-  margin-left: auto;
-  display: flex;
-  gap: 0.25rem;
-}
-
-.kaart-tekst {
-  margin: 0;
-  font-size: 0.85rem;
-  line-height: 1.4;
-  color: var(--clr-text);
-}
-
-/* Duration badge */
-.kaart-duur {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--clr-text-muted);
-  background: var(--clr-bg);
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  font-variant-numeric: tabular-nums;
-}
-
-.kaart-duur.prominent {
-  font-size: 0.85rem;
-  background: var(--clr-accent-light);
-  color: var(--clr-accent);
-  padding: 0.15rem 0.5rem;
-}
-
-/* ---- Compact kaart (klaar/ingediend) ---- */
-
-.kanban-kaart.compact {
-  padding: 0.35rem 0.6rem;
-  cursor: pointer;
-}
-
-.kaart-compact-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-}
-
-.kanban-kaart.compact .code {
-  font-size: 0.8rem;
-}
-
-.kanban-kaart.compact .kaart-duur {
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.kaart-expand {
-  margin-top: 0.35rem;
-  padding-top: 0.35rem;
-  border-top: 1px solid var(--clr-border);
-}
-
-.kaart-expand .kaart-tekst {
-  font-size: 0.8rem;
-  margin-bottom: 0.25rem;
-}
-
-.kaart-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
+/* Card CSS now in TaakKaart.vue */
 
 /* ---- Edit modal ---- */
 

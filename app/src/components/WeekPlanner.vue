@@ -1,117 +1,107 @@
 <template>
   <div class="weekplan">
-    <div class="wp-layout">
-      <!-- Sidebar: unplanned tasks -->
-      <div
-        class="wp-sidebar"
-        @dragover.prevent
-        @dragenter.prevent="dragOverTarget = '__pool__'"
-        @dragleave="onDragLeave($event, '__pool__')"
-        @drop="onDropPool($event)"
-      >
-        <div class="wp-sb-header">
-          <span class="wp-sb-titel">Ongepland</span>
-          <span class="wp-sb-count">{{ gefilterdeOngeplande.length }} · {{ gefilterdeOngeplandMinuten }}'</span>
-        </div>
+    <!-- Toolbar: filters + action buttons (above header, like kanban) -->
+    <div class="wp-toolbar">
+      <button class="btn-expand" @click="poolRef?.toggleAlles()" :title="poolRef?.allesOpen ? 'Alles dichtklappen' : 'Alles openklappen'">
+        <span class="expand-icon" :class="{ open: poolRef?.allesOpen }">+</span>
+      </button>
+      <div class="wp-toolbar-filters">
         <div v-if="selectedVak" class="wp-sb-vakfilter">
           <span class="wp-sb-vakfilter-label">{{ selectedVak }}</span>
           <button class="wp-sb-vakfilter-clear" @click="selectedVak = null">&times;</button>
         </div>
-        <div v-else class="wp-sb-filters">
-          <button :class="{ on: sidebarFilter !== 'rooster' }" @click="toggleFilter('huistaken')">Huistaken</button>
-          <button :class="{ on: sidebarFilter !== 'huistaken' }" @click="toggleFilter('rooster')">Rooster</button>
-        </div>
-        <div class="wp-sb-taken" :class="{ 'drag-over': dragOverTarget === '__pool__' }">
-          <template v-for="groep in sidebarGroepen" :key="groep.vak">
-            <button class="vak-rij-header" @click="toggleVak(groep.vak)">
-              <span class="vak-chevron" :class="{ open: isVakOpen(groep.vak) }">&#9656;</span>
-              <span class="vak-naam">{{ groep.vak || 'Overig' }}</span>
-              <span class="vak-samenvatting">{{ groep.taken.length }} · {{ groepMinuten(groep) }}'</span>
-            </button>
-            <template v-if="isVakOpen(groep.vak)">
-              <div
-                v-for="taak in groep.taken"
-                :key="taak.id"
-                class="kanban-kaart"
-                :class="[hoofdgroepClass(taak), dragRelatedClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster', dragging: draggingTaak?.id === taak.id }]"
-                :draggable="!isReadOnly"
-                @dragstart="onDragStart($event, taak)"
-                @dragend="onDragEnd"
-              >
-                <div class="kaart-top">
-                  <span v-if="taak.code" class="code">{{ taak.code }}</span>
-                  <span v-if="taakKeten(taak)" class="kaart-keten" :title="ketenTooltip(taak)">
-                    <template v-for="(stap, si) in taakKeten(taak)" :key="stap.id">
-                      <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
-                      <span v-if="si < taakKeten(taak).length - 1" class="keten-pijl">→</span>
-                    </template>
-                  </span>
-                  <div class="flags">
-                    <span v-for="f in taak.flags" :key="f" class="flag" :title="flagTooltips[f] || f">{{ f }}</span>
-                  </div>
-                  <span class="kaart-duur prominent">{{ formatDuur(taak) }}</span>
-                </div>
-                <p class="kaart-tekst">{{ taak.omschrijving }}</p>
-              </div>
-            </template>
-          </template>
-          <div v-if="!gefilterdeOngeplande.length" class="wp-sb-leeg">
-            {{ sidebarFilter === 'rooster' ? 'Geen roostertaken' : sidebarFilter === 'huistaken' ? 'Geen huistaken' : 'Alle taken ingepland!' }}
-          </div>
+        <div v-else class="segmented-group">
+          <button :class="{ on: sidebarFilter !== 'rooster' }" @click="toggleFilter('huistaken')">Huistaken ({{ huistakenCount }})</button>
+          <button :class="{ on: sidebarFilter !== 'huistaken' }" @click="toggleFilter('rooster')">Rooster ({{ roosterCount }})</button>
         </div>
       </div>
+      <div class="wp-toolbar-actions">
+        <button class="wp-sb-icon-btn" @click="autoSuggest" title="Rooster-taken automatisch inplannen">
+          <Icon icon="mdi:lightning-bolt" width="14" height="14" />
+        </button>
+        <button v-if="hasGeplande" class="wp-sb-icon-btn wp-sb-icon-danger" @click="resetWeekplan" title="Weekplanning wissen">
+          <Icon icon="mdi:delete-outline" width="14" height="14" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Connected header bar: pool header + gutter + day headers -->
+    <div class="wp-connected-header">
+      <div class="wp-pool-header" :style="{ width: poolRef?.currentWidth + 'px' }">
+        <div class="wp-pool-segmented">
+          <button :class="{ active: !sidebarShowAll }" @click="sidebarShowAll = false" title="Ongeplande taken">
+            <Icon icon="mdi:calendar-edit-outline" width="16" height="16" />
+          </button>
+          <button :class="{ active: sidebarShowAll }" @click="sidebarShowAll = true" title="Alle taken">
+            <Icon icon="mdi:list-box-outline" width="16" height="16" />
+          </button>
+        </div>
+        <span class="wp-pool-count">{{ gefilterdeOngeplande.length }}</span>
+        <span class="wp-pool-minuten">{{ poolRef?.totalMinuten ?? 0 }}'</span>
+      </div>
+      <div
+        v-for="dag in zichtbareDagen"
+        :key="'h-' + dag"
+        class="wp-col-header"
+        :class="{
+          'is-weekend': dag === 'za' || dag === 'zo',
+          'is-vandaag': dag === vandaagDag,
+          'is-focus': viewMode === 'dag',
+        }"
+      >
+        <template v-if="viewMode === 'dag'">
+          <div class="wp-focus-header">
+            <button class="wp-nav-btn" @click.stop="navigeerDag(-1)" title="Vorige dag">&lsaquo;</button>
+            <span class="wp-col-naam">{{ dagLang[dag] }}</span>
+            <button class="wp-nav-btn" @click.stop="navigeerDag(1)" title="Volgende dag">&rsaquo;</button>
+          </div>
+        </template>
+        <template v-else>
+          <span class="wp-col-naam">{{ dagKort[dag] }}</span>
+        </template>
+        <span class="wp-col-cap" :class="capaciteitClass(dag)">{{ geplandMinuten(dag) }}' / {{ beschikbareMinuten(dag) }}'</span>
+      </div>
+    </div>
+
+    <!-- Content: pool + timeline side by side -->
+    <div class="wp-layout">
+      <!-- Sidebar: unplanned tasks (headerless — header is above) -->
+      <TakenPool
+        ref="poolRef"
+        :taken="gefilterdeOngeplande"
+        titel="Ongepland"
+        headerless
+        :read-only="isReadOnly"
+        :is-drag-over="dragOverTarget === '__pool__'"
+        :dragging-taak-id="draggingTaak?.id"
+        :taak-keten="taakKeten"
+        :keten-tooltip="ketenTooltip"
+        :keten-stap-kleur="ketenStapKleur"
+        :drag-related-class-fn="dragRelatedClass"
+        :format-duur-fn="formatDuur"
+        :duur-tooltip-fn="duurTooltip"
+        :filter="sidebarFilter"
+        :rooster-count="roosterCount"
+        :huistaken-count="huistakenCount"
+        @dragenter="dragOverTarget = '__pool__'"
+        @dragleave="onDragLeave($event, '__pool__')"
+        @drop="onDropPool($event)"
+        @card-dragstart="(e, taak) => onDragStart(e, taak)"
+        @card-dragend="onDragEnd"
+        @update:filter="onFilterUpdate"
+      >
+        <template #empty>
+          {{ sidebarFilter === 'rooster' ? 'Geen roostertaken' : sidebarFilter === 'huistaken' ? 'Geen huistaken' : 'Alle taken ingepland!' }}
+        </template>
+      </TakenPool>
 
       <!-- Main area -->
       <div class="wp-main">
-        <div class="wp-header">
-          <h2>Weekplan</h2>
-          <div class="wp-view-toggle">
-            <button :class="{ active: viewMode === 'week' }" @click="viewMode = 'week'" title="Weekoverzicht">Week</button>
-            <button :class="{ active: viewMode === 'dag' }" @click="setDayView()" title="Dagweergave (3 dagen)">Dag</button>
-          </div>
-          <span class="wp-deadline">Deadline: zo 21:00</span>
-          <button class="wp-action-btn" @click="autoSuggest" title="Rooster-taken automatisch inplannen">Auto</button>
-          <button v-if="hasGeplande" class="wp-action-btn wp-reset-btn" @click="resetWeekplan" title="Weekplanning wissen">Reset</button>
-        </div>
-
         <!-- Timeline grid: gutter + day columns -->
         <div class="wp-timeline-wrap">
-          <!-- Column headers ABOVE the scrollable area -->
-          <div class="wp-col-headers">
-            <div class="wp-gutter-placeholder"></div>
-            <div
-              v-for="dag in zichtbareDagen"
-              :key="'h-' + dag"
-              class="wp-col-header"
-              :class="{
-                'is-weekend': dag === 'za' || dag === 'zo',
-                'is-vandaag': dag === vandaagDag,
-                'is-focus': viewMode === 'dag',
-              }"
-            >
-              <template v-if="viewMode === 'dag'">
-                <div class="wp-focus-header">
-                  <button class="wp-nav-btn" @click.stop="navigeerDag(-1)" title="Vorige dag">&lsaquo;</button>
-                  <span class="wp-col-naam">{{ dagLang[dag] }}</span>
-                  <button class="wp-nav-btn" @click.stop="navigeerDag(1)" title="Volgende dag">&rsaquo;</button>
-                </div>
-              </template>
-              <template v-else>
-                <span class="wp-col-naam">{{ dagKort[dag] }}</span>
-              </template>
-              <span class="wp-col-cap" :class="capaciteitClass(dag)">{{ geplandMinuten(dag) }}' / {{ beschikbareMinuten(dag) }}'</span>
-            </div>
-          </div>
 
           <!-- Scrollable timeline -->
           <div class="wp-timeline-row">
-            <!-- Time gutter -->
-            <div class="wp-gutter">
-              <div v-for="h in 14" :key="h" class="wp-gutter-hour" :style="{ top: (h - 1) * BLOKKEN_PER_UUR * BLOK_PX + 'px', height: BLOKKEN_PER_UUR * BLOK_PX + 'px' }">
-                {{ formatUur(h) }}
-              </div>
-            </div>
-
             <!-- Day columns -->
             <div
               v-for="dag in zichtbareDagen"
@@ -150,14 +140,6 @@
                   <span class="wp-band-label">{{ kortLabel(slot.titel) }}</span>
                 </div>
 
-                <!-- Deadline line: Sunday 21:00 -->
-                <div
-                  v-if="dag === 'zo'"
-                  class="wp-deadline-line"
-                  :style="{ top: DEADLINE_BLOK * BLOK_PX + 'px' }"
-                >
-                  <span class="wp-deadline-label">21:00</span>
-                </div>
 
                 <!-- Drop indicator -->
                 <div
@@ -264,15 +246,17 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
+import { hoofdgroepClass, formatDuur as _formatDuur, duurTooltip as _duurTooltip, flagTooltips, useVolgordeKetens, useDragRelated } from '../composables/useTakenLogic.js';
+import TakenPool from './TakenPool.vue';
 
 const { state, alleTaken, planTaak, updateVoortgang, isReadOnly, wpViewMode, wpFocusDag } = usePlanner();
 
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
 const dagLang = { ma: 'Maandag', di: 'Dinsdag', wo: 'Woensdag', do: 'Donderdag', vr: 'Vrijdag', za: 'Zaterdag', zo: 'Zondag' };
-const flagTooltips = { P: 'Inleveren op papier', M: 'Materiaal meebrengen', U: 'Uitgestelde deadline', G: 'Groepswerk' };
 
 // ---- View mode (week / dag) — stored in planner store to survive remounts ----
 const viewMode = wpViewMode;
@@ -308,37 +292,24 @@ const TOTAL_BLOKKEN = 14 * BLOKKEN_PER_UUR; // 56 blocks
 const TOTAL_PX = computed(() => TOTAL_BLOKKEN * BLOK_PX.value);
 
 // Deadline line: 21:00 on the timeline
-// Timeline starts at 8:30 (h=1). Hour h covers (7+h):30 to (8+h):30
-// 21:00 = 12h30m after 8:30 = 12.5 hours = 50 blocks
-const DEADLINE_BLOK = 50;
 
+const poolRef = ref(null);
 const dragOverTarget = ref(null);
 const draggingTaak = ref(null);
 const dropBlok = ref(null);
-const sidebarFilter = ref(null);
+const sidebarFilter = ref('rooster');
 const selectedVak = ref(null);
-const openVakken = reactive({});
+const sidebarShowAll = ref(false);
 
 // ---- Helpers ----
 
-function formatUur(h) {
-  const hour = 7 + h;
-  return `${hour}:30`;
-}
 
 function formatDuur(taak) {
-  if (taak.voortgang?.customMinuten != null) return `${taak.voortgang.customMinuten}'`;
-  if (!taak.tijd) return '15\'';
-  if (taak.tijd.type === 'rooster') return 'R';
-  if (taak.tijd.type === 'minuten') return `${taak.tijd.minuten}'`;
-  return '15\'';
+  return _formatDuur(taak, { showCustom: true, defaultMinutes: 15 });
 }
 
 function duurTooltip(taak) {
-  if (!taak.tijd) return '15 minuten (standaard)';
-  if (taak.tijd.type === 'rooster') return 'Roosteruur';
-  if (taak.tijd.type === 'minuten') return `${taak.tijd.minuten} minuten`;
-  return '';
+  return _duurTooltip(taak, { defaultMinutes: 15 });
 }
 
 function compactTooltip(taak) {
@@ -367,14 +338,6 @@ const draggingTaakBlokken = computed(() => {
   return taakBlokken(draggingTaak.value);
 });
 
-function hoofdgroepClass(taak) {
-  const hg = (taak.hoofdgroep || '').toUpperCase();
-  if (hg.includes('WETENSCHAP')) return 'hg-wetenschap';
-  if (hg.includes('TALEN')) return 'hg-talen';
-  if (hg.includes('WISKUNDE')) return 'hg-wiskunde';
-  if (hg.includes('PROJECT')) return 'hg-project';
-  return 'hg-algemeen';
-}
 
 function statusClass(taak) { return `status-${taak.voortgang.status}`; }
 
@@ -437,9 +400,8 @@ function slotStyle(slot) {
   };
 }
 
-// ---- Volgtijdelijkheid (dependency chains) ----
+// ---- Volgtijdelijkheid (dependency chains) — via composable ----
 
-// All unique vakken from tasks
 const alleVakken = computed(() => {
   const map = new Map();
   for (const taak of alleTaken.value) {
@@ -450,59 +412,7 @@ const alleVakken = computed(() => {
   return Array.from(map.entries()).map(([naam, taken]) => ({ naam, taken }));
 });
 
-const volgordeKetens = computed(() => {
-  const result = [];
-  for (const vak of alleVakken.value) {
-    const metVolgorde = [...vak.taken]
-      .filter(t => typeof t.volgorde === 'number')
-      .sort((a, b) => (a.origIndex ?? 0) - (b.origIndex ?? 0));
-
-    if (metVolgorde.length < 2) continue;
-
-    let huidigeKeten = [metVolgorde[0]];
-    for (let i = 1; i < metVolgorde.length; i++) {
-      if (metVolgorde[i].volgorde > metVolgorde[i - 1].volgorde) {
-        huidigeKeten.push(metVolgorde[i]);
-      } else {
-        if (huidigeKeten.length > 1) result.push(huidigeKeten);
-        huidigeKeten = [metVolgorde[i]];
-      }
-    }
-    if (huidigeKeten.length > 1) result.push(huidigeKeten);
-  }
-  return result;
-});
-
-const relatedIds = computed(() => {
-  const lookup = new Map();
-  for (const keten of volgordeKetens.value) {
-    const ids = keten.map(t => t.id);
-    for (const id of ids) {
-      lookup.set(id, new Set(ids));
-    }
-  }
-  return lookup;
-});
-
-const taakKetenMap = computed(() => {
-  const map = new Map();
-  for (const keten of volgordeKetens.value) {
-    for (const t of keten) {
-      map.set(t.id, keten);
-    }
-  }
-  return map;
-});
-
-function taakKeten(taak) {
-  return taakKetenMap.value.get(taak.id) || null;
-}
-
-function ketenTooltip(taak) {
-  const keten = taakKeten(taak);
-  if (!keten) return '';
-  return `Volgorde: ${keten.map(t => t.code || `#${t.volgorde}`).join(' → ')}`;
-}
+const { taakKetenMap, taakKeten, ketenTooltip, relatedIds } = useVolgordeKetens(alleVakken);
 
 const statusRank = { open: 0, bezig: 1, klaar: 2, ingediend: 3 };
 
@@ -569,26 +479,7 @@ function ketenStapKleur(stap, kaart) {
   return 'keten-groen'; // predecessor before
 }
 
-function isRelatedToDrag(taakId) {
-  if (!draggingTaak.value) return false;
-  const related = relatedIds.value.get(draggingTaak.value.id);
-  return related?.has(taakId) && taakId !== draggingTaak.value.id;
-}
-
-function dragRelatedClass(taak) {
-  if (!isRelatedToDrag(taak.id)) return '';
-  const keten = taakKetenMap.value.get(taak.id);
-  if (!keten) return 'drag-related-ok';
-  let worstLevel = 0;
-  for (let i = 1; i < keten.length; i++) {
-    const kleur = ketenStapKleur(keten[i], keten[i]);
-    if (kleur === 'keten-rood') worstLevel = 2;
-    else if (kleur === 'keten-oranje' && worstLevel < 2) worstLevel = 1;
-  }
-  if (worstLevel === 2) return 'drag-related-conflict';
-  if (worstLevel === 1) return 'drag-related-warn';
-  return 'drag-related-ok';
-}
+const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenMap, ketenStapKleur);
 
 // ---- Place tasks on timeline (no overlap) ----
 
@@ -676,12 +567,16 @@ function geplandeTaken(dag) {
 }
 
 const alleOngeplande = computed(() => {
+  if (sidebarShowAll.value) return alleTaken.value;
   return alleTaken.value.filter(t => {
     if (t.geplandOp) return false;
     if (t.voortgang.status === 'klaar' || t.voortgang.status === 'ingediend') return false;
     return true;
   });
 });
+
+const roosterCount = computed(() => alleOngeplande.value.filter(t => t.tijd?.type === 'rooster').length);
+const huistakenCount = computed(() => alleOngeplande.value.filter(t => t.tijd?.type !== 'rooster').length);
 
 // Map rooster slot titles to task vak/hoofdgroep keywords
 // Equivalenten:
@@ -788,22 +683,9 @@ const gefilterdeOngeplandMinuten = computed(() => {
   return gefilterdeOngeplande.value.reduce((sum, t) => (t.tijd?.type === 'minuten' ? sum + t.tijd.minuten : sum), 0);
 });
 
-// ---- Sidebar grouping ----
-
-const sidebarGroepen = computed(() => {
-  const map = {};
-  for (const taak of gefilterdeOngeplande.value) {
-    const vak = taak.vak || '';
-    if (!map[vak]) map[vak] = { vak, taken: [] };
-    map[vak].taken.push(taak);
-  }
-  return Object.values(map).sort((a, b) => a.vak.localeCompare(b.vak));
-});
-
-function groepMinuten(groep) { return groep.taken.reduce((s, t) => (t.tijd?.type === 'minuten' ? s + t.tijd.minuten : s), 0); }
-function isVakOpen(vak) { return openVakken[vak] !== false; }
-function toggleVak(vak) { openVakken[vak] = !isVakOpen(vak); }
+// ---- Sidebar (handled by TakenPool component) ----
 function toggleFilter(f) { sidebarFilter.value = sidebarFilter.value === f ? null : f; selectedVak.value = null; }
+function onFilterUpdate(f) { sidebarFilter.value = f; selectedVak.value = null; }
 function toggleVakFilter(titel) { selectedVak.value = selectedVak.value === titel ? null : titel; }
 
 // Band selection: clicked vak filter (matches equivalent vakken)
@@ -1166,35 +1048,110 @@ function isOverdue(taak) {
 </script>
 
 <style scoped>
-/* ---- Layout ---- */
-.wp-layout { display: flex; gap: 0.75rem; align-items: flex-start; }
-.wp-main { flex: 1; min-width: 0; }
-
-/* ---- Header ---- */
-.wp-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.5rem; }
-.wp-header h2 { margin: 0; font-size: 1.3rem; }
-.wp-deadline { font-size: 0.8rem; color: var(--clr-text-muted); background: var(--clr-bg); padding: 0.15rem 0.5rem; border-radius: 4px; }
-
-.wp-action-btn {
-  padding: 0.3rem 0.75rem; border: 1px solid var(--clr-border); border-radius: 6px;
-  background: var(--clr-surface); cursor: pointer; font-size: 0.8rem; font-weight: 600;
-  color: var(--clr-text-muted); transition: all 0.15s; white-space: nowrap;
-  min-width: 5.5rem; text-align: center; box-sizing: border-box;
+/* ---- Toolbar (above header, like kanban) ---- */
+.wp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
 }
-.wp-action-btn:hover { border-color: var(--clr-accent); color: var(--clr-accent); background: var(--clr-accent-light); }
-.wp-action-btn.wp-reset-btn:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
+.wp-toolbar-filters { display: flex; align-items: center; gap: 0.5rem; }
+.wp-toolbar-actions { margin-left: auto; display: flex; gap: 2px; }
 
-/* View toggle */
-.wp-view-toggle {
-  display: inline-flex; border: 1px solid var(--clr-border); border-radius: 6px; overflow: hidden;
+.btn-expand {
+  width: 2rem; height: 2rem; border: 1px solid var(--clr-border); border-radius: var(--radius);
+  background: var(--clr-surface); cursor: pointer; display: flex; align-items: center;
+  justify-content: center; padding: 0; transition: all 0.15s;
 }
-.wp-view-toggle button {
-  padding: 0.25rem 0.6rem; border: none; background: var(--clr-surface); cursor: pointer;
-  font-size: 0.75rem; font-weight: 600; color: var(--clr-text-muted); transition: all 0.15s;
+.btn-expand:hover { border-color: var(--clr-accent); background: var(--clr-accent-light); }
+.expand-icon {
+  font-size: 1.1rem; font-weight: 700; line-height: 1; color: var(--clr-text-muted); transition: transform 0.2s;
 }
-.wp-view-toggle button + button { border-left: 1px solid var(--clr-border); }
-.wp-view-toggle button.active { background: var(--clr-accent); color: white; }
-.wp-view-toggle button:hover:not(.active) { background: var(--clr-accent-light); color: var(--clr-accent); }
+.expand-icon.open { transform: rotate(45deg); }
+
+.segmented-group {
+  display: flex;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.segmented-group button {
+  background: var(--clr-bg);
+  border: none;
+  border-right: 1px solid var(--clr-border);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--clr-text-muted);
+  transition: all 0.15s;
+  font-weight: 500;
+}
+.segmented-group button:last-child { border-right: none; }
+.segmented-group button.on { background: var(--clr-accent); color: white; }
+
+/* ---- Connected header bar ---- */
+.wp-connected-header {
+  display: flex;
+  background: var(--clr-surface);
+  border: 1px solid var(--clr-border);
+  border-bottom: 2px solid var(--clr-border);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.wp-pool-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border-right: 1px solid var(--clr-border);
+  font-size: 0.9rem;
+}
+.wp-pool-segmented {
+  display: flex;
+  border: 1px solid var(--clr-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.wp-pool-segmented button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.4rem;
+  border: none;
+  background: var(--clr-surface);
+  cursor: pointer;
+  color: var(--clr-text-muted);
+  transition: all 0.15s;
+}
+.wp-pool-segmented button + button { border-left: 1px solid var(--clr-border); }
+.wp-pool-segmented button.active { background: var(--clr-accent); color: white; }
+.wp-pool-segmented button:hover:not(.active) { background: var(--clr-accent-light); color: var(--clr-accent); }
+.wp-pool-count {
+  font-size: 0.75rem;
+  color: var(--clr-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.wp-pool-minuten {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Content layout ---- */
+.wp-layout {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--clr-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
+  max-height: calc(100vh - 11rem);
+}
+.wp-main { flex: 1; min-width: 0; overflow: hidden; }
 
 /* Day nav */
 .wp-nav-btn {
@@ -1205,16 +1162,9 @@ function isOverdue(taak) {
 }
 .wp-nav-btn:hover { border-color: var(--clr-accent); color: var(--clr-accent); background: var(--clr-accent-light); }
 
-/* ---- Column headers (above scroll area) ---- */
-.wp-timeline-wrap { border: 1px solid var(--clr-border); border-radius: var(--radius); background: var(--clr-surface); overflow: hidden; }
+/* ---- Timeline (no own border — part of connected layout) ---- */
+.wp-timeline-wrap { background: var(--clr-surface); overflow: hidden; }
 
-.wp-col-headers {
-  display: flex;
-  border-bottom: 2px solid var(--clr-border);
-  background: var(--clr-surface);
-}
-
-.wp-gutter-placeholder { width: 36px; flex-shrink: 0; border-right: 1px solid var(--clr-border); }
 
 .wp-col-header {
   flex: 1; min-width: 0;
@@ -1222,7 +1172,6 @@ function isOverdue(taak) {
   padding: 0.3rem 0.15rem;
   border-left: 1px solid var(--clr-border);
 }
-.wp-col-header:first-of-type { border-left: none; }
 .wp-col-header.is-weekend { background: rgba(0,0,0,0.02); }
 
 .wp-col-naam { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -1236,31 +1185,8 @@ function isOverdue(taak) {
 .wp-timeline-row {
   display: flex;
   overflow-y: auto;
-  max-height: calc(100vh - 11rem);
 }
 
-/* Time gutter */
-.wp-gutter {
-  width: 36px;
-  flex-shrink: 0;
-  position: relative;
-  background: var(--clr-bg);
-  border-right: 1px solid var(--clr-border);
-}
-
-.wp-gutter-hour {
-  position: absolute;
-  left: 0; right: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 1px;
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--clr-text-muted);
-  font-variant-numeric: tabular-nums;
-  border-top: 1px solid var(--clr-border);
-}
 
 /* Day column */
 .wp-tl-col {
@@ -1268,7 +1194,6 @@ function isOverdue(taak) {
   min-width: 0;
   border-left: 1px solid var(--clr-border);
 }
-.wp-tl-col:first-of-type { border-left: none; }
 .wp-tl-col.is-weekend { background: rgba(0,0,0,0.025); }
 .wp-tl-col.wp-tl-dragover { background: rgba(99, 102, 241, 0.04); }
 
@@ -1300,26 +1225,6 @@ function isOverdue(taak) {
   border-top: 1px solid rgba(0,0,0,0.06);
 }
 
-/* ---- Deadline line (Sunday 21:00) ---- */
-.wp-deadline-line {
-  position: absolute;
-  left: 0; right: 0;
-  height: 0;
-  border-top: 3px solid #ef4444;
-  z-index: 2;
-  pointer-events: none;
-}
-.wp-deadline-label {
-  position: absolute;
-  top: -0.8rem;
-  right: 2px;
-  font-size: 0.6rem;
-  font-weight: 800;
-  color: #ef4444;
-  background: var(--clr-surface);
-  padding: 0 3px;
-  line-height: 1;
-}
 
 /* ---- Rooster background bands ---- */
 .wp-rooster-band {
@@ -1538,25 +1443,22 @@ function isOverdue(taak) {
   border-radius: 1px;
 }
 
-/* ---- Drag highlights (chain related) ---- */
-.wp-tl-taak.drag-related-ok,
-.kanban-kaart.drag-related-ok {
+/* ---- Drag highlights (timeline tasks) ---- */
+.wp-tl-taak.drag-related-ok {
   outline: 3px solid #10b981;
   outline-offset: -1px;
   background: #ecfdf5 !important;
   animation: drag-pulse-ok 0.7s ease-in-out infinite;
 }
 
-.wp-tl-taak.drag-related-warn,
-.kanban-kaart.drag-related-warn {
+.wp-tl-taak.drag-related-warn {
   outline: 3px solid #d97706;
   outline-offset: -1px;
   background: #fffbeb !important;
   animation: drag-pulse-warn 0.7s ease-in-out infinite;
 }
 
-.wp-tl-taak.drag-related-conflict,
-.kanban-kaart.drag-related-conflict {
+.wp-tl-taak.drag-related-conflict {
   outline: 3px solid #ef4444;
   outline-offset: -1px;
   background: #fef2f2 !important;
@@ -1578,63 +1480,17 @@ function isOverdue(taak) {
   50% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.4); }
 }
 
-/* ---- Dependency chain badges ---- */
-.kaart-keten {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-  font-size: 0.65rem;
-  font-weight: 700;
+/* ---- Dependency chain (timeline-specific sizes) ---- */
+
+/* ---- Sidebar (icon buttons used in slot) ---- */
+.wp-sb-icon-btn {
+  width: 26px; height: 26px; border: 1px solid var(--clr-border); border-radius: 5px;
+  background: var(--clr-surface); cursor: pointer; color: var(--clr-text-muted);
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  transition: all 0.15s;
 }
-
-.keten-stap {
-  width: 1.2rem;
-  height: 1.2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  background: var(--clr-bg);
-  color: var(--clr-text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.keten-stap.keten-eigen {
-  outline: 2px solid currentColor;
-  outline-offset: -1px;
-  font-weight: 900;
-}
-
-.keten-grijs { background: var(--clr-bg); color: var(--clr-text-muted); }
-.keten-groen { background: #ecfdf5; color: #059669; }
-.keten-oranje { background: #fffbeb; color: #d97706; }
-.keten-rood { background: #fef2f2; color: #dc2626; }
-
-.keten-pijl {
-  color: var(--clr-text-muted);
-  opacity: 0.4;
-  font-size: 0.55rem;
-}
-
-/* ---- Sidebar ---- */
-.wp-sidebar {
-  width: 260px; flex-shrink: 0; background: var(--clr-surface);
-  border: 1px solid var(--clr-border); border-radius: var(--radius);
-  position: sticky; top: 1rem; max-height: calc(100vh - 8rem); overflow-y: auto;
-}
-
-.wp-sb-header { display: flex; align-items: baseline; justify-content: space-between; padding: 0.6rem 0.75rem 0.35rem; }
-.wp-sb-titel { font-weight: 700; font-size: 0.95rem; }
-.wp-sb-count { font-size: 0.75rem; color: var(--clr-text-muted); font-variant-numeric: tabular-nums; }
-
-.wp-sb-filters { display: flex; gap: 2px; padding: 0 0.75rem 0.5rem; }
-.wp-sb-filters button {
-  flex: 1; padding: 0.25rem 0.4rem; border: 1px solid var(--clr-border); border-radius: 6px;
-  background: var(--clr-surface); cursor: pointer; font-size: 0.7rem; font-weight: 600;
-  color: var(--clr-text-muted); transition: all 0.15s;
-}
-.wp-sb-filters button.on { background: var(--clr-accent); color: white; border-color: var(--clr-accent); }
-.wp-sb-filters button:hover:not(.on) { border-color: var(--clr-accent); color: var(--clr-accent); }
+.wp-sb-icon-btn:hover { border-color: var(--clr-accent); color: var(--clr-accent); background: var(--clr-accent-light); }
+.wp-sb-icon-btn.wp-sb-icon-danger:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
 
 .wp-sb-vakfilter {
   display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.75rem 0.5rem;
@@ -1649,44 +1505,15 @@ function isOverdue(taak) {
 }
 .wp-sb-vakfilter-clear:hover { color: #ef4444; }
 
-.wp-sb-taken { padding: 0 0.5rem 0.5rem; display: flex; flex-direction: column; gap: 0.3rem; min-height: 60px; transition: background 0.15s; }
-.wp-sb-taken.drag-over { background: var(--clr-accent-light); }
-
-.vak-rij-header {
-  display: flex; align-items: center; gap: 0.4rem; width: 100%; padding: 0.4rem 0.25rem;
-  border: none; background: none; cursor: pointer; font-size: 0.8rem; font-weight: 600;
-  color: var(--clr-text); text-align: left; border-bottom: 1px solid var(--clr-border); transition: background 0.1s;
+/* pool-filters in the filters slot */
+.pool-filters { display: flex; gap: 2px; padding: 0 0.75rem 0.5rem; }
+.pool-filters button {
+  flex: 1; padding: 0.25rem 0.4rem; border: 1px solid var(--clr-border); border-radius: 6px;
+  background: var(--clr-surface); cursor: pointer; font-size: 0.7rem; font-weight: 600;
+  color: var(--clr-text-muted); transition: all 0.15s;
 }
-.vak-rij-header:hover { background: var(--clr-bg); }
-.vak-chevron { font-size: 0.65rem; transition: transform 0.15s; color: var(--clr-text-muted); display: inline-block; }
-.vak-chevron.open { transform: rotate(90deg); }
-.vak-naam { font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vak-samenvatting { font-size: 0.7rem; font-weight: 500; color: var(--clr-text-muted); white-space: nowrap; }
-
-/* Sidebar cards: identical to kanban open/bezig cards */
-.kanban-kaart {
-  background: var(--clr-surface); border-radius: 8px; padding: 0.6rem 0.75rem;
-  box-shadow: var(--shadow); border-left: 3px solid var(--clr-todo);
-  cursor: grab; transition: box-shadow 0.15s, opacity 0.15s, transform 0.15s; user-select: none;
-}
-.kanban-kaart:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
-.kanban-kaart.dragging { opacity: 0.5; transform: rotate(1deg); }
-.kanban-kaart.hg-wetenschap { border-left-color: var(--clr-wetenschap); }
-.kanban-kaart.hg-talen { border-left-color: var(--clr-talen); }
-.kanban-kaart.hg-wiskunde { border-left-color: var(--clr-wiskunde); }
-.kanban-kaart.hg-project { border-left-color: var(--clr-project); }
-.kanban-kaart.is-rooster { border-left-style: dashed; background: white; }
-
-.kaart-top { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.3rem; }
-.kaart-top .flags { margin-left: auto; display: flex; gap: 0.25rem; }
-.code { font-size: 0.8rem; font-weight: 700; color: var(--clr-accent); }
-.flags { display: flex; gap: 0.2rem; }
-.flag { font-size: 0.6rem; font-weight: 700; background: #fef3c7; color: #92400e; padding: 0.05rem 0.25rem; border-radius: 3px; }
-.kaart-duur { font-size: 0.75rem; font-weight: 700; color: var(--clr-text-muted); background: var(--clr-bg); padding: 0.1rem 0.4rem; border-radius: 4px; font-variant-numeric: tabular-nums; }
-.kaart-duur.prominent { font-size: 0.85rem; background: var(--clr-accent-light); color: var(--clr-accent); padding: 0.15rem 0.5rem; }
-.kaart-tekst { margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--clr-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-
-.wp-sb-leeg { color: var(--clr-text-muted); font-size: 0.8rem; font-style: italic; padding: 1.5rem 0; text-align: center; }
+.pool-filters button.on { background: var(--clr-accent); color: white; border-color: var(--clr-accent); }
+.pool-filters button:hover:not(.on) { border-color: var(--clr-accent); color: var(--clr-accent); }
 
 /* ---- "Nu" indicator ---- */
 .wp-nu-line {
@@ -1758,6 +1585,5 @@ function isOverdue(taak) {
 /* ---- Responsive ---- */
 @media (max-width: 900px) {
   .wp-layout { flex-direction: column; }
-  .wp-sidebar { width: 100%; position: static; max-height: none; }
 }
 </style>

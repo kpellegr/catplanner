@@ -9,7 +9,7 @@
         <!-- Left: home + title blocks + upload -->
         <div class="header-left">
           <button class="btn-home" title="Overzicht" @click="goHome">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <Icon icon="mdi:home-outline" width="20" height="20" />
           </button>
 
           <!-- Block 1: naam + profiel -->
@@ -39,7 +39,7 @@
           <!-- Upload -->
           <label v-if="!isReadOnly" class="tb-btn tb-upload" title="Studiewijzer importeren" @dragover.prevent @drop.prevent="onDrop">
             <input ref="fileInput" type="file" accept=".md,.txt" multiple @change="onFiles" hidden />
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 10v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-3"/><polyline points="5 5 8 2 11 5"/><line x1="8" y1="2" x2="8" y2="10"/></svg>
+            <Icon icon="mdi:upload-outline" width="16" height="16" />
           </label>
         </div>
 
@@ -47,17 +47,20 @@
         <nav>
           <!-- View switcher -->
           <div class="view-switcher">
-            <button v-if="state.weken.length" :class="{ active: view === 'kanban' }" @click="view = 'kanban'" title="Kanban">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="1" width="4" height="14" rx="1"/><rect x="6" y="1" width="4" height="9" rx="1"/><rect x="11" y="1" width="4" height="11" rx="1"/></svg>
+            <button v-if="state.weken.length" :class="{ active: view === 'kanban' }" @click="setView('kanban')" title="Kanban (K)">
+              <Icon icon="mdi:view-week" width="18" height="18" />
             </button>
-            <button v-if="state.weken.length" :class="{ active: view === 'weekplan' }" @click="view = 'weekplan'" title="Weekplanner">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="14" height="13" rx="1.5"/><line x1="1" y1="6" x2="15" y2="6"/><line x1="5.5" y1="6" x2="5.5" y2="15"/><line x1="10.5" y1="6" x2="10.5" y2="15"/></svg>
+            <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'week' }" @click="setView('week')" title="Week (W)">
+              <Icon icon="mdi:view-week-outline" width="18" height="18" />
             </button>
-            <button :class="{ active: view === 'rooster' }" @click="view = 'rooster'" title="Weekrooster">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="2" width="14" height="13" rx="1.5"/><line x1="1" y1="6" x2="15" y2="6"/><line x1="5.5" y1="2" x2="5.5" y2="15"/><line x1="10.5" y1="2" x2="10.5" y2="15"/><line x1="1" y1="10" x2="15" y2="10"/></svg>
+            <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'dag' }" @click="setView('dag')" title="Dag (D)">
+              <Icon icon="mdi:view-day-outline" width="18" height="18" />
             </button>
-            <button v-if="state.weken.length" :class="{ active: view === 'print' }" @click="view = 'print'" title="Afdrukken">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 4 1 12 1 12 6"/><path d="M4 11H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-2"/><rect x="4" y="9" width="8" height="6" rx="1"/></svg>
+            <button :class="{ active: view === 'rooster' }" @click="setView('rooster')" title="Weekrooster">
+              <Icon icon="mdi:grid" width="18" height="18" />
+            </button>
+            <button v-if="state.weken.length" :class="{ active: view === 'print' }" @click="setView('print')" title="Afdrukken (P)">
+              <Icon icon="mdi:printer-outline" width="18" height="18" />
             </button>
           </div>
 
@@ -67,10 +70,10 @@
           <!-- Supporting actions -->
           <NotificatieBel />
           <button v-if="isEigenaar" class="tb-btn" title="Delen" @click="showDeel = true">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="3" r="2"/><circle cx="4" cy="8" r="2"/><circle cx="12" cy="13" r="2"/><line x1="5.7" y1="9.1" x2="10.3" y2="11.9"/><line x1="10.3" y1="4.1" x2="5.7" y2="6.9"/></svg>
+            <Icon icon="mdi:share-variant-outline" width="18" height="18" />
           </button>
           <button v-if="isEigenaar" class="tb-btn tb-danger" title="Reset" @click="onReset">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <Icon icon="mdi:delete-outline" width="18" height="18" />
           </button>
 
           <!-- Avatar / profile dropdown -->
@@ -125,8 +128,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { useAuth } from '../stores/auth.js';
 import * as sync from '../stores/sync.js';
@@ -143,7 +147,7 @@ const props = defineProps({
 });
 
 const router = useRouter();
-const { state, stats, isReadOnly, isEigenaar, resetAlles, init } = usePlanner();
+const { state, stats, isReadOnly, isEigenaar, resetAlles, init, wpViewMode } = usePlanner();
 const auth = useAuth();
 
 const view = ref('kanban');
@@ -233,6 +237,24 @@ async function onLogout() {
   await auth.signOut();
 }
 
+function setView(v) {
+  if (v === 'kanban') { view.value = 'kanban'; }
+  else if (v === 'week') { view.value = 'weekplan'; wpViewMode.value = 'week'; }
+  else if (v === 'dag') { view.value = 'weekplan'; wpViewMode.value = 'dag'; }
+  else if (v === 'rooster') { view.value = 'rooster'; }
+  else if (v === 'print') { view.value = 'print'; }
+}
+
+function onKeydown(e) {
+  // Skip if user is typing in an input/textarea/select
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+  if (!state.weken.length) return;
+  if (e.key === 'k' || e.key === 'K') setView('kanban');
+  else if (e.key === 'w' || e.key === 'W') setView('week');
+  else if (e.key === 'd' || e.key === 'D') setView('dag');
+  else if (e.key === 'p' || e.key === 'P') setView('print');
+}
+
 function goHome() {
   router.push('/dashboard');
 }
@@ -252,10 +274,13 @@ onMounted(async () => {
   if (!state.loaded || (props.plannerId && state.plannerId !== props.plannerId)) {
     await init(props.plannerId);
   }
-  // Load all planners for dropdown
   try {
     allPlanners.value = await sync.getMyPlanners();
   } catch (_) { /* ignore */ }
+  document.addEventListener('keydown', onKeydown);
+});
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKeydown);
 });
 </script>
 
