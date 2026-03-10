@@ -69,7 +69,8 @@
               v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
               :key="taak.id"
               class="kanban-kaart compact"
-              :class="[hoofdgroepClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster', expanded: expandedKaarten[taak.id] }]"
+              :class="[hoofdgroepClass(taak), dragRelatedClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster', expanded: expandedKaarten[taak.id] }]"
+              :data-taak-id="taak.id"
               :draggable="!isReadOnly"
               @dragstart="!isReadOnly && dragStart($event, taak)"
               @dragend="dragEnd"
@@ -78,6 +79,12 @@
             >
               <div class="kaart-compact-row">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
+                <span v-if="taakKeten(taak)" class="kaart-keten" :title="ketenTooltip(taak)">
+                  <template v-for="(stap, si) in taakKeten(taak)" :key="stap.id">
+                    <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
+                    <span v-if="si < taakKeten(taak).length - 1" class="keten-pijl">→</span>
+                  </template>
+                </span>
                 <span class="kaart-duur" :title="duurTooltip(taak)">{{ formatDuur(taak) }}</span>
               </div>
               <div v-if="expandedKaarten[taak.id]" class="kaart-expand">
@@ -95,7 +102,8 @@
               v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
               :key="taak.id"
               class="kanban-kaart"
-              :class="[hoofdgroepClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster' }]"
+              :class="[hoofdgroepClass(taak), dragRelatedClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster' }]"
+              :data-taak-id="taak.id"
               :draggable="!isReadOnly"
               @dragstart="!isReadOnly && dragStart($event, taak)"
               @dragend="dragEnd"
@@ -103,7 +111,12 @@
             >
               <div class="kaart-top">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
-                <span v-if="taak.volgorde != null" class="volgorde" title="Volgorde">#{{ taak.volgorde }}</span>
+                <span v-if="taakKeten(taak)" class="kaart-keten" :title="ketenTooltip(taak)">
+                  <template v-for="(stap, si) in taakKeten(taak)" :key="stap.id">
+                    <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
+                    <span v-if="si < taakKeten(taak).length - 1" class="keten-pijl">→</span>
+                  </template>
+                </span>
                 <div class="flags">
                   <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagTooltip(flag)">{{ flag }}</span>
                 </div>
@@ -115,6 +128,7 @@
         </div>
       </template>
     </template>
+
   </div>
 
   <!-- Edit modal -->
@@ -157,6 +171,7 @@ const { alleTaken, updateVoortgang, editTaak, isReadOnly } = usePlanner();
 const verbergRooster = ref(false);
 const verbergHuistaken = ref(false);
 const dragOverCel = ref(null);
+const dragOverStatus = ref(null);
 const draggingTaak = ref(null);
 const confettiCanvas = ref(null);
 const expandedKaarten = reactive({});
@@ -323,10 +338,12 @@ function dragEnd(e) {
   e.target.classList.remove('dragging');
   draggingTaak.value = null;
   dragOverCel.value = null;
+  dragOverStatus.value = null;
 }
 
 function dragEnterCel(vak, status) {
   dragOverCel.value = vak + '_' + status;
+  dragOverStatus.value = status;
 }
 
 function dragLeaveCel(e, vak, status) {
@@ -405,6 +422,133 @@ function fireConfetti() {
     }
   }
   animate();
+}
+
+// ---- Volgtijdelijkheid ----
+
+// Per vak: gesorteerde ketens van taken met volgorde
+const volgordeKetens = computed(() => {
+  const map = new Map();
+  for (const vak of vakken.value) {
+    const metVolgorde = vak.taken
+      .filter(t => typeof t.volgorde === 'number')
+      .sort((a, b) => a.volgorde - b.volgorde);
+    if (metVolgorde.length > 1) {
+      map.set(vak.naam, metVolgorde);
+    }
+  }
+  return map;
+});
+
+// Lookup: taak-id → set van gerelateerde taak-ids (hele keten)
+const relatedIds = computed(() => {
+  const lookup = new Map();
+  for (const [, keten] of volgordeKetens.value) {
+    const ids = keten.map(t => t.id);
+    for (const id of ids) {
+      lookup.set(id, new Set(ids));
+    }
+  }
+  return lookup;
+});
+
+// Lookup: taak-id → voorganger (de taak die eerst klaar moet zijn)
+const voorgangerMap = computed(() => {
+  const map = new Map();
+  for (const [, keten] of volgordeKetens.value) {
+    for (let i = 1; i < keten.length; i++) {
+      map.set(keten[i].id, keten[i - 1]);
+    }
+  }
+  return map;
+});
+
+// Per taak-id → de keten waar die in zit (of null)
+const taakKetenMap = computed(() => {
+  const map = new Map();
+  for (const [, keten] of volgordeKetens.value) {
+    for (const t of keten) {
+      map.set(t.id, keten);
+    }
+  }
+  return map;
+});
+
+function taakKeten(taak) {
+  return taakKetenMap.value.get(taak.id) || null;
+}
+
+function ketenTooltip(taak) {
+  const keten = taakKeten(taak);
+  if (!keten) return '';
+  const stappen = keten.map(t => t.code || `#${t.volgorde}`).join(' → ');
+  return `Volgorde: ${stappen}`;
+}
+
+const statusRank = { open: 0, bezig: 1, klaar: 2, ingediend: 3 };
+
+// Effectieve status: houdt rekening met actieve drag
+function effectieveStatus(stap) {
+  if (draggingTaak.value?.id === stap.id && dragOverStatus.value) {
+    return dragOverStatus.value;
+  }
+  return stap.voortgang.status;
+}
+
+// Kleur per stap op basis van relatie met voorganger
+function ketenStapKleur(stap, kaart) {
+  if (stap.id !== kaart.id) return 'keten-grijs';
+  const keten = taakKetenMap.value.get(stap.id);
+  if (!keten) return 'keten-grijs';
+  const idx = keten.findIndex(t => t.id === stap.id);
+
+  const status = effectieveStatus(stap);
+  const rank = statusRank[status] ?? 0;
+
+  // Niet gestart → grijs
+  if (rank === 0) return 'keten-grijs';
+  // Eerste stap, gestart → altijd ok
+  if (idx === 0) return 'keten-groen';
+
+  const voorganger = keten[idx - 1];
+  const vStatus = effectieveStatus(voorganger);
+  const vRank = statusRank[vStatus] ?? 0;
+
+  // Voorganger is strikt verder → groen (geen conflict)
+  if (vRank > rank) return 'keten-groen';
+  // Beiden in dezelfde fase: alleen oranje als ze allebei bezig zijn
+  if (vRank === rank) return rank === 1 ? 'keten-oranje' : 'keten-groen';
+  // Taak staat verder dan voorganger → rood (conflict)
+  return 'keten-rood';
+}
+
+function isRelatedToDrag(taakId) {
+  if (!draggingTaak.value) return false;
+  const related = relatedIds.value.get(draggingTaak.value.id);
+  return related?.has(taakId) && taakId !== draggingTaak.value.id;
+}
+
+function isVoorgangerKlaar(taakId) {
+  const voorganger = voorgangerMap.value.get(taakId);
+  if (!voorganger) return true;
+  return voorganger.voortgang.status === 'klaar' || voorganger.voortgang.status === 'ingediend';
+}
+
+function dragRelatedClass(taak) {
+  if (!isRelatedToDrag(taak.id)) return '';
+  // Check of de drag een conflict veroorzaakt in de keten
+  const keten = taakKetenMap.value.get(taak.id);
+  if (!keten) return 'drag-related-ok';
+  // Kijk of er ergens in de keten een conflict is
+  let worstLevel = 0; // 0=ok, 1=oranje, 2=rood
+  for (let i = 1; i < keten.length; i++) {
+    const kleur = ketenStapKleur(keten[i], keten[i]);
+    if (kleur === 'keten-rood') worstLevel = 2;
+    else if (kleur === 'keten-oranje' && worstLevel < 2) worstLevel = 1;
+  }
+  if (worstLevel === 2) return 'drag-related-conflict';
+  if (worstLevel === 1) return 'drag-related-warn';
+  return 'drag-related-ok';
 }
 </script>
 
@@ -598,6 +742,95 @@ function fireConfetti() {
 .mini-klaar { color: var(--clr-klaar); }
 .mini-ingediend { color: var(--clr-accent); }
 
+/* ---- Sequentie-ketting op kaart ---- */
+
+.kaart-keten {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.keten-stap {
+  width: 1.2rem;
+  height: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: var(--clr-bg);
+  color: var(--clr-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.keten-stap.keten-eigen {
+  outline: 2px solid currentColor;
+  outline-offset: -1px;
+  font-weight: 900;
+}
+
+.keten-grijs {
+  background: var(--clr-bg);
+  color: var(--clr-text-muted);
+}
+
+.keten-groen {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.keten-oranje {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.keten-rood {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.keten-pijl {
+  color: var(--clr-text-muted);
+  opacity: 0.4;
+  font-size: 0.55rem;
+}
+
+/* ---- Drag highlights ---- */
+
+.kanban-kaart.drag-related-ok {
+  outline: 2px solid #10b981;
+  outline-offset: -2px;
+  animation: drag-pulse-ok 1s ease-in-out infinite;
+}
+
+.kanban-kaart.drag-related-warn {
+  outline: 2px solid #d97706;
+  outline-offset: -2px;
+  animation: drag-pulse-warn 1s ease-in-out infinite;
+}
+
+.kanban-kaart.drag-related-conflict {
+  outline: 2px solid #ef4444;
+  outline-offset: -2px;
+  animation: drag-pulse-conflict 1s ease-in-out infinite;
+}
+
+@keyframes drag-pulse-ok {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 8px 2px rgba(16, 185, 129, 0.3); }
+}
+
+@keyframes drag-pulse-warn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.3); }
+  50% { box-shadow: 0 0 8px 2px rgba(217, 119, 6, 0.3); }
+}
+
+@keyframes drag-pulse-conflict {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+  50% { box-shadow: 0 0 8px 2px rgba(239, 68, 68, 0.3); }
+}
+
 /* ---- Vak cel (expanded content per kolom) ---- */
 
 .vak-cel {
@@ -643,8 +876,8 @@ function fireConfetti() {
 }
 
 .kanban-kaart.dragging {
-  opacity: 0.4;
-  transform: rotate(2deg);
+  opacity: 0.5;
+  transform: rotate(1deg);
 }
 
 .kanban-kaart.hg-wetenschap { border-left-color: var(--clr-wetenschap); }
