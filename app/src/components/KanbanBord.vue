@@ -78,13 +78,13 @@
             >
               <div class="kaart-compact-row">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
-                <span class="kaart-duur">{{ formatDuur(taak) }}</span>
+                <span class="kaart-duur" :title="duurTooltip(taak)">{{ formatDuur(taak) }}</span>
               </div>
               <div v-if="expandedKaarten[taak.id]" class="kaart-expand">
                 <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
                 <div class="kaart-meta">
                   <div class="flags">
-                    <span v-for="flag in taak.flags" :key="flag" class="flag">{{ flag }}</span>
+                    <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagTooltip(flag)">{{ flag }}</span>
                   </div>
                 </div>
               </div>
@@ -103,11 +103,11 @@
             >
               <div class="kaart-top">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
-                <span v-if="taak.volgorde != null" class="volgorde">#{{ taak.volgorde }}</span>
+                <span v-if="taak.volgorde != null" class="volgorde" title="Volgorde">#{{ taak.volgorde }}</span>
                 <div class="flags">
-                  <span v-for="flag in taak.flags" :key="flag" class="flag">{{ flag }}</span>
+                  <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagTooltip(flag)">{{ flag }}</span>
                 </div>
-                <span class="kaart-duur prominent">{{ formatDuur(taak) }}</span>
+                <span class="kaart-duur prominent" :title="duurTooltip(taak)">{{ formatDuur(taak) }}</span>
               </div>
               <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
             </div>
@@ -202,10 +202,28 @@ const vakken = computed(() => {
     .map(([naam, taken]) => ({ naam, taken }));
 });
 
+const flagTooltips = {
+  P: 'Inleveren op papier',
+  M: 'Materiaal meebrengen',
+  U: 'Uitgestelde deadline',
+  G: 'Groepswerk',
+};
+
+function flagTooltip(flag) {
+  return flagTooltips[flag] || flag;
+}
+
 function formatDuur(taak) {
   if (!taak.tijd) return '';
   if (taak.tijd.type === 'rooster') return 'R';
   if (taak.tijd.type === 'minuten') return `${taak.tijd.minuten}'`;
+  return '';
+}
+
+function duurTooltip(taak) {
+  if (!taak.tijd) return '';
+  if (taak.tijd.type === 'rooster') return 'Roosteruur';
+  if (taak.tijd.type === 'minuten') return `${taak.tijd.minuten} minuten`;
   return '';
 }
 

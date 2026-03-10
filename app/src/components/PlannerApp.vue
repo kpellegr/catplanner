@@ -31,9 +31,9 @@
           <div v-if="weekInfo" class="header-block">
             <div class="titel-row">
               <span class="week-label">Week {{ weekInfo.week }}</span>
-              <span class="werklast-badge">{{ stats.totalMinuten }}'</span>
+              <span v-if="weekInfo.datum" class="datum-inline">– {{ weekInfo.datum }}</span>
             </div>
-            <div v-if="weekInfo.datum" class="subtitel">{{ weekInfo.datum }}</div>
+            <div class="subtitel">Werklast <span class="werklast-badge">{{ stats.totalMinuten }}'</span></div>
           </div>
 
           <!-- Upload -->
@@ -68,7 +68,7 @@
           </button>
 
           <!-- Avatar / profile dropdown -->
-          <div class="avatar-wrapper" @click="showProfile = !showProfile">
+          <div class="avatar-wrapper" @click.stop="showProfile = !showProfile">
             <img v-if="userAvatar" :src="userAvatar" class="avatar" referrerpolicy="no-referrer" />
             <div v-else class="avatar avatar-initials">{{ userInitials }}</div>
             <div v-if="showProfile" class="profile-dropdown" @click.stop>
@@ -181,7 +181,13 @@ const weekInfo = computed(() => {
   const w = state.weken[0].metadata;
   let datum = '';
   if (w.datumRange) {
-    datum = `${fmtDatum(w.datumRange.van)} – ${fmtDatum(w.datumRange.tot)}`;
+    const [dVan, mVan] = w.datumRange.van.split('/');
+    const [dTot, mTot] = w.datumRange.tot.split('/');
+    if (mVan === mTot) {
+      datum = `${parseInt(dVan)} tot ${parseInt(dTot)} ${maanden[parseInt(mTot) - 1]}`;
+    } else {
+      datum = `${parseInt(dVan)} ${maanden[parseInt(mVan) - 1]} – ${parseInt(dTot)} ${maanden[parseInt(mTot) - 1]}`;
+    }
   }
   return { week: w.week, datum };
 });
@@ -334,6 +340,12 @@ onMounted(async () => {
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--clr-text);
+}
+
+.datum-inline {
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--clr-text-muted);
 }
 
 .subtitel {
