@@ -149,6 +149,11 @@ function parseTijd(raw) {
   if (!raw) return null;
   const lower = raw.toLowerCase();
 
+  // "rooster /Z(elf)" = zelfstandig werk voor Z-route → huistaak met 50 min
+  if (/rooster\s*\/\s*z/i.test(lower)) {
+    return { type: 'rooster_zelf', minuten: 50 };
+  }
+
   if (lower.includes('rooster')) {
     const minutesMatch = raw.match(/\((\d+)['']?\)/);
     return { type: 'rooster', minuten: minutesMatch ? parseInt(minutesMatch[1]) : null };
@@ -223,6 +228,15 @@ export function filterVoorProfiel(parsed, profiel) {
           const routeKey = profiel.route?.toUpperCase() || 'Z';
           taak.tijd = { type: 'minuten', minuten: taak.tijd[routeKey] || taak.tijd.Z || taak.tijd.B };
         }
+        // "rooster /Z(elf)": Z-route students do this as huistaak, others as rooster
+        if (taak.tijd && taak.tijd.type === 'rooster_zelf') {
+          const route = (profiel.route || '').toUpperCase();
+          if (route === 'Z') {
+            taak.tijd = { type: 'minuten', minuten: taak.tijd.minuten || 50 };
+          } else {
+            taak.tijd = { type: 'rooster', minuten: null };
+          }
+        }
         secFiltered.push(taak);
       }
     }
@@ -268,6 +282,8 @@ function getFilterRedenProfiel(taak, profiel) {
       return `Wiskunde ${taak.richting} (jij doet ${profiel.wiskunde})`;
     }
     if (r === myWisk) return null;
+    // 8u students also do 6u tasks (8u = 6u + extra)
+    if (r === '6U' && myWisk === '8U') return null;
     return `Wiskunde ${taak.richting} (jij doet ${profiel.wiskunde})`;
   }
 

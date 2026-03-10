@@ -79,7 +79,7 @@
               v-for="dag in dagen"
               :key="'h-' + dag"
               class="wp-col-header"
-              :class="{ 'is-weekend': dag === 'za' || dag === 'zo' }"
+              :class="{ 'is-weekend': dag === 'za' || dag === 'zo', 'is-vandaag': dag === vandaagDag }"
             >
               <span class="wp-col-naam">{{ dagKort[dag] }}</span>
               <span class="wp-col-cap" :class="capaciteitClass(dag)">{{ geplandMinuten(dag) }}' / {{ beschikbareMinuten(dag) }}'</span>
@@ -100,7 +100,7 @@
               v-for="dag in dagen"
               :key="dag"
               class="wp-tl-col"
-              :class="{ 'wp-tl-dragover': dragOverTarget === dag, 'is-weekend': dag === 'za' || dag === 'zo' }"
+              :class="{ 'wp-tl-dragover': dragOverTarget === dag, 'is-weekend': dag === 'za' || dag === 'zo', 'is-vandaag': dag === vandaagDag }"
               @dragover.prevent="onDragOverTimeline($event, dag)"
               @dragenter.prevent="dragOverTarget = dag"
               @dragleave="onDragLeave($event, dag)"
@@ -125,7 +125,7 @@
                   :style="slotStyle(slot)"
                   @click="slot.type === 'les' ? toggleVakFilter(slot.titel) : null"
                 >
-                  <span class="wp-band-label">{{ slot.titel }}</span>
+                  <span class="wp-band-label">{{ kortLabel(slot.titel) }}</span>
                 </div>
 
                 <!-- Deadline line: Sunday 21:00 -->
@@ -145,6 +145,15 @@
                   :style="{ top: dropBlok * BLOK_PX + 'px', height: draggingTaakBlokken * BLOK_PX + 'px' }"
                 ></div>
 
+                <!-- "Nu" indicator line -->
+                <div
+                  v-if="dag === vandaagDag && nuBlok >= 0"
+                  class="wp-nu-line"
+                  :style="{ top: nuBlok * BLOK_PX + 'px' }"
+                >
+                  <span class="wp-nu-dot"></span>
+                </div>
+
                 <!-- Placed tasks -->
                 <div
                   v-for="placed in geplaatstetaken(dag)"
@@ -157,26 +166,41 @@
                     {
                       'is-rooster': placed.taak.tijd?.type === 'rooster',
                       'is-huistaak': placed.taak.tijd?.type !== 'rooster',
+                      'is-klaar': placed.taak.voortgang.status === 'klaar' || placed.taak.voortgang.status === 'ingediend',
+                      'is-overdue': isOverdue(placed.taak),
                       dragging: draggingTaak?.id === placed.taak.id,
                     }
                   ]"
                   :style="{ top: placed.blok * BLOK_PX + 'px', height: placed.blokken * BLOK_PX + 'px' }"
                   :draggable="!isReadOnly"
-                  :title="(placed.taak.code || '') + ' ' + (placed.taak.omschrijving || '')"
+                  :title="compactTooltip(placed.taak)"
                   @dragstart="onDragStart($event, placed.taak)"
                   @dragend="onDragEnd"
                 >
                   <div class="tl-compact-row">
-                    <span v-if="placed.taak.code" class="tl-code">{{ placed.taak.code }}</span>
+                    <button
+                      class="tl-check-btn"
+                      :class="{ checked: placed.taak.voortgang.status === 'klaar' || placed.taak.voortgang.status === 'ingediend' }"
+                      :title="placed.taak.voortgang.status === 'klaar' ? 'Markeer als open' : 'Markeer als klaar'"
+                      @click.stop="toggleKlaar(placed.taak)"
+                    >✓</button>
+                    <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" title="Achterstand!">!</span>
+                    <span class="tl-code">{{ placed.taak.code || kortVak(placed.taak.vak) }}</span>
                     <span v-if="taakKeten(placed.taak)" class="kaart-keten tl-keten" :title="ketenTooltip(placed.taak)">
                       <template v-for="(stap, si) in taakKeten(placed.taak)" :key="stap.id">
                         <span class="keten-stap" :class="[ketenStapKleur(stap, placed.taak), { 'keten-eigen': stap.id === placed.taak.id }]">{{ stap.volgorde }}</span>
                         <span v-if="si < taakKeten(placed.taak).length - 1" class="keten-pijl">→</span>
                       </template>
                     </span>
-                    <span class="tl-duur">{{ formatDuur(placed.taak) }}</span>
-                    <button class="tl-unplan" @click.stop="unplan(placed.taak)">&times;</button>
+                    <span class="tl-duur" :class="{ 'tl-duur-custom': isCustomDuur(placed.taak) }" @dblclick.stop="resetCustomDuur(placed.taak)">{{ formatDuur(placed.taak) }}</span>
+                    <button v-if="placed.taak.voortgang.status !== 'klaar' && placed.taak.voortgang.status !== 'ingediend'" class="tl-unplan" @click.stop="unplan(placed.taak)">&times;</button>
                   </div>
+                  <!-- Resize handle -->
+                  <div
+                    v-if="!isReadOnly"
+                    class="tl-resize-handle"
+                    @mousedown.stop.prevent="onResizeStart($event, placed.taak, placed)"
+                  ></div>
                 </div>
               </div>
             </div>
@@ -188,10 +212,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { usePlanner } from '../stores/planner.js';
 
-const { state, alleTaken, planTaak, isReadOnly } = usePlanner();
+const { state, alleTaken, planTaak, updateVoortgang, isReadOnly } = usePlanner();
 
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
@@ -223,6 +247,7 @@ function formatUur(h) {
 }
 
 function formatDuur(taak) {
+  if (taak.voortgang?.customMinuten != null) return `${taak.voortgang.customMinuten}'`;
   if (!taak.tijd) return '15\'';
   if (taak.tijd.type === 'rooster') return 'R';
   if (taak.tijd.type === 'minuten') return `${taak.tijd.minuten}'`;
@@ -236,7 +261,22 @@ function duurTooltip(taak) {
   return '';
 }
 
+function compactTooltip(taak) {
+  const parts = [];
+  if (taak.code) parts.push(taak.code);
+  if (taak.omschrijving) parts.push(taak.omschrijving);
+  if (taak.voortgang?.customMinuten != null) parts.push(`${taak.voortgang.customMinuten} min (aangepast, dubbelklik duur om te resetten)`);
+  else if (taak.tijd?.type === 'minuten') parts.push(`${taak.tijd.minuten} min`);
+  else if (taak.tijd?.type === 'rooster') parts.push('Roosteruur');
+  if (taak.flags?.length) parts.push(`Flags: ${taak.flags.map(f => flagTooltips[f] || f).join(', ')}`);
+  if (taak.voortgang.status === 'klaar') parts.push('✓ Klaar');
+  if (isOverdue(taak)) parts.push('⚠ Achterstand!');
+  parts.push('Sleep onderrand om duur aan te passen');
+  return parts.join('\n');
+}
+
 function taakBlokken(taak) {
+  if (taak.voortgang?.customMinuten != null) return Math.max(1, Math.ceil(taak.voortgang.customMinuten / 15));
   if (taak.tijd?.type === 'minuten') return Math.max(1, Math.ceil(taak.tijd.minuten / 15));
   if (taak.tijd?.type === 'rooster') return BLOKKEN_PER_UUR; // 1 hour default
   return 1; // default 15 min = 1 block
@@ -257,6 +297,47 @@ function hoofdgroepClass(taak) {
 }
 
 function statusClass(taak) { return `status-${taak.voortgang.status}`; }
+
+// Abbreviate rooster band labels for compact display
+const KORT_LABELS = {
+  'wiskunde': 'WIS', 'wiskunde 6': 'WIS6', 'wiskunde 8': 'WIS8',
+  'biologie': 'BIO', 'fysica': 'FY', 'chemie': 'CH',
+  'nederlands': 'NED', 'frans': 'FRA', 'engels': 'ENG',
+  'taal': 'TAAL', 'science@lab': 'S@L', 'lab@work': 'L@W', 'stem@lab': 'STEM',
+  'stem project': 'STEM', 'zebra': 'ZEBRA', 'coaching': 'CO',
+  'cultuur': 'CUL', 'cb': 'CUL', 'rb': 'RB',
+  'pauze': 'PAUZE', 'volleybal': 'VOLLEY', 'badminton': 'BADM',
+  'piano': 'PIANO', 'lo': 'LO',
+};
+// Abbreviate vak name for compact card display
+const VAK_KORT = {
+  'biologie': 'BIO', 'fysica': 'FY', 'chemie': 'CH',
+  'nederlands': 'NED', 'frans': 'FRA', 'engels': 'ENG',
+  'wiskunde 6': 'WIS6', 'wiskunde 8': 'WIS8', 'wiskunde': 'WIS',
+  'burgerschap': 'CUL', 'cultuurbeschouwing': 'CUL',
+  'ruimtelijk': 'RB', 'aardwetenschap': 'RB',
+};
+function kortVak(vak) {
+  if (!vak) return '';
+  const lower = vak.toLowerCase();
+  for (const [key, kort] of Object.entries(VAK_KORT)) {
+    if (lower.includes(key)) return kort;
+  }
+  // Extract first word, max 4 chars
+  const first = vak.split(/[\s:]/)[0];
+  return first.length > 5 ? first.slice(0, 4).toUpperCase() : first.toUpperCase();
+}
+
+function kortLabel(titel) {
+  const lower = titel.toLowerCase();
+  if (KORT_LABELS[lower]) return KORT_LABELS[lower];
+  // Try prefix match
+  for (const [key, kort] of Object.entries(KORT_LABELS)) {
+    if (lower.startsWith(key) || key.startsWith(lower)) return kort;
+  }
+  // Fallback: first 4 chars uppercase
+  return titel.slice(0, 5).toUpperCase();
+}
 
 // ---- Rooster ----
 
@@ -530,20 +611,32 @@ const alleOngeplande = computed(() => {
 //   Lab@Work → alle vakken (wildcard)
 const ROOSTER_VAK_MAP = {
   'taal': ['nederlands', 'frans', 'engels', 'duits', 'taal'],
-  'wiskunde': ['wiskunde'],
+  'wiskunde': ['wiskunde 6', 'wiskunde 8', 'wiskunde'],
+  'wiskunde 6': ['wiskunde 6', 'wiskunde'],
+  'wiskunde 8': ['wiskunde 8', 'wiskunde'],
   'biologie': ['biologie'],
   'fysica': ['fysica'],
   'chemie': ['chemie'],
   'cultuur': ['burgerschap', 'cultuurbeschouwing', 'historisch'],
+  'cb': ['burgerschap', 'cultuurbeschouwing', 'historisch'],
+  'rb': ['ruimtelijk', 'aardwetenschap'],
   'science@lab': ['biologie', 'fysica', 'chemie', 'science', 'stem'],
   'lab@work': null,  // null = wildcard, matches all vakken
   'stem@lab': ['stem'],
+};
+
+// Map task code prefixes to rooster slot titles
+const CODE_ROOSTER_MAP = {
+  'hb': ['cultuur', 'cb'],
+  'cb': ['cultuur', 'cb'],
+  'aa': ['rb'],
 };
 
 function matchesRoosterVak(taak, roosterTitel) {
   const titel = roosterTitel.toLowerCase();
   const vak = (taak.vak || '').toLowerCase();
   const hg = (taak.hoofdgroep || '').toLowerCase();
+  const code = (taak.code || '').toLowerCase().replace(/[\d\s]+$/, '');
 
   // Lab@Work = wildcard: matches any vak
   if (ROOSTER_VAK_MAP[titel] === null) return true;
@@ -557,6 +650,12 @@ function matchesRoosterVak(taak, roosterTitel) {
       if (vak.includes(kw) || hg.includes(kw)) return true;
     }
   }
+
+  // Match task code prefix to rooster slot (HB→cultuur, AA→rb)
+  if (code && CODE_ROOSTER_MAP[code]) {
+    if (CODE_ROOSTER_MAP[code].includes(titel)) return true;
+  }
+
   return false;
 }
 
@@ -566,6 +665,7 @@ function matchingRoosterTitels(taak) {
   const result = new Set();
   const vak = (taak.vak || '').toLowerCase();
   const hg = (taak.hoofdgroep || '').toLowerCase();
+  const code = (taak.code || '').toLowerCase().replace(/[\d\s]+$/, '');
 
   for (const [titel, keywords] of Object.entries(ROOSTER_VAK_MAP)) {
     // Wildcard (Lab@Work)
@@ -578,6 +678,14 @@ function matchingRoosterTitels(taak) {
       if (vak.includes(kw) || hg.includes(kw)) { result.add(titel); break; }
     }
   }
+
+  // Code-based match (HB→cultuur/cb, AA→rb)
+  if (code && CODE_ROOSTER_MAP[code]) {
+    for (const titel of CODE_ROOSTER_MAP[code]) {
+      result.add(titel);
+    }
+  }
+
   return result;
 }
 
@@ -654,6 +762,7 @@ function beschikbareMinuten(dag) {
 
 function geplandMinuten(dag) {
   return geplandeTaken(dag).reduce((s, t) => {
+    if (t.voortgang?.customMinuten != null) return s + t.voortgang.customMinuten;
     if (t.tijd?.type === 'minuten') return s + t.tijd.minuten;
     if (!t.tijd) return s + 15; // no time = 15 min
     return s;
@@ -708,12 +817,22 @@ function snapBlok(blok, dag, taakId) {
   const placed = geplaatstetaken(dag).filter(p => p.taak.id !== taakId);
   const blokken = draggingTaak.value ? taakBlokken(draggingTaak.value) : 1;
 
-  // Snap to rooster slots: if drop is within a lesson band, snap to its start
+  // Snap to rooster slots: if drop is within a lesson band, snap to first free spot in that band
   for (const slot of roosterSlots(dag)) {
     const slotStart = (slot.uur - 1) * BLOKKEN_PER_UUR;
     const slotEnd = slotStart + BLOKKEN_PER_UUR;
     if (blok >= slotStart - 1 && blok < slotEnd) {
-      return Math.max(0, Math.min(slotStart, TOTAL_BLOKKEN - blokken));
+      // Find the end of existing tasks in this slot
+      let freeStart = slotStart;
+      for (const p of placed) {
+        const pEnd = p.blok + p.blokken;
+        if (pEnd > freeStart && p.blok < slotEnd) {
+          freeStart = pEnd;
+        }
+      }
+      // If there's room after existing tasks, snap there; otherwise snap to slot start
+      const snapTo = (freeStart + blokken <= slotEnd) ? freeStart : slotStart;
+      return Math.max(0, Math.min(snapTo, TOTAL_BLOKKEN - blokken));
     }
   }
 
@@ -856,6 +975,113 @@ async function resetWeekplan() {
     await planTaak(taak.id, null);
   }
 }
+
+// ---- Toggle klaar ----
+
+function toggleKlaar(taak) {
+  if (isReadOnly.value) return;
+  const newStatus = taak.voortgang.status === 'klaar' ? 'open' : 'klaar';
+  updateVoortgang(taak.id, { status: newStatus });
+}
+
+// ---- Resize (manual duration) ----
+
+const resizing = ref(null); // { taakId, startY, startBlokken, placed }
+
+function isCustomDuur(taak) {
+  return taak.voortgang.customMinuten != null;
+}
+
+function resetCustomDuur(taak) {
+  if (isReadOnly.value || !isCustomDuur(taak)) return;
+  updateVoortgang(taak.id, { customMinuten: null });
+}
+
+function onResizeStart(e, taak, placed) {
+  const startMinuten = taak.voortgang?.customMinuten ?? (placed.blokken * 15);
+  resizing.value = {
+    taakId: taak.id,
+    startY: e.clientY,
+    startMinuten,
+  };
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = 'ns-resize';
+  document.body.style.userSelect = 'none';
+}
+
+function onResizeMove(e) {
+  if (!resizing.value) return;
+  const dy = e.clientY - resizing.value.startY;
+  // 5-minute increments: each pixel step = BLOK_PX/3 (since 15min/3 = 5min)
+  const pxPer5Min = BLOK_PX / 3;
+  const delta5 = Math.round(dy / pxPer5Min) * 5;
+  const newMinuten = Math.max(5, resizing.value.startMinuten + delta5);
+  // Live preview: temporarily update voortgang
+  const taak = alleTaken.value.find(t => t.id === resizing.value.taakId);
+  if (taak) {
+    taak.voortgang.customMinuten = newMinuten;
+  }
+}
+
+function onResizeEnd() {
+  if (!resizing.value) return;
+  const taak = alleTaken.value.find(t => t.id === resizing.value.taakId);
+  if (taak && taak.voortgang.customMinuten != null) {
+    updateVoortgang(taak.id, { customMinuten: taak.voortgang.customMinuten });
+  }
+  resizing.value = null;
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+}
+
+// ---- "Nu" indicator ----
+
+const now = ref(new Date());
+let nowTimer = null;
+
+onMounted(() => {
+  nowTimer = setInterval(() => { now.value = new Date(); }, 60000); // update every minute
+});
+onUnmounted(() => {
+  if (nowTimer) clearInterval(nowTimer);
+  document.removeEventListener('mousemove', onResizeMove);
+  document.removeEventListener('mouseup', onResizeEnd);
+});
+
+// Which day column is "today"?
+const vandaagDag = computed(() => {
+  const jsDay = now.value.getDay(); // 0=Sun, 1=Mon, ...
+  const dagMap = [6, 0, 1, 2, 3, 4, 5]; // Sun=zo(6), Mon=ma(0), ...
+  return dagen[dagMap[jsDay]] || null;
+});
+
+// "Nu" blok position on the timeline (timeline starts at 8:30)
+const nuBlok = computed(() => {
+  const h = now.value.getHours();
+  const m = now.value.getMinutes();
+  const minutesSince830 = (h - 8) * 60 + (m - 30);
+  if (minutesSince830 < 0) return -1; // before 8:30
+  const blok = Math.floor(minutesSince830 / 15);
+  if (blok >= TOTAL_BLOKKEN) return -1; // after 22:30
+  return blok;
+});
+
+// Is a task in the past? (planned before "now" and not klaar)
+function isOverdue(taak) {
+  if (!taak.geplandOp) return false;
+  if (taak.voortgang.status === 'klaar' || taak.voortgang.status === 'ingediend') return false;
+  const taakDagIdx = dagen.indexOf(taak.geplandOp);
+  const vandaagIdx = dagen.indexOf(vandaagDag.value);
+  if (taakDagIdx < vandaagIdx) return true;
+  if (taakDagIdx === vandaagIdx && taak.geplandBlok !== null && nuBlok.value >= 0) {
+    const taakEnd = taak.geplandBlok + taakBlokken(taak);
+    if (taakEnd <= nuBlok.value) return true;
+  }
+  return false;
+}
 </script>
 
 <style scoped>
@@ -941,13 +1167,13 @@ async function resetWeekplan() {
   border-left: 1px solid var(--clr-border);
 }
 .wp-tl-col:first-of-type { border-left: none; }
-.wp-tl-col.is-weekend { background: rgba(0,0,0,0.015); }
+.wp-tl-col.is-weekend { background: rgba(0,0,0,0.025); }
 .wp-tl-col.wp-tl-dragover { background: rgba(99, 102, 241, 0.04); }
 
-/* Timeline body */
+/* Timeline body — light grey base so bands pop */
 .wp-tl-body {
   position: relative;
-  background: transparent;
+  background: #f8f8fa;
 }
 
 /* Hour grid lines */
@@ -955,7 +1181,7 @@ async function resetWeekplan() {
   position: absolute;
   left: 0; right: 0;
   height: 0;
-  border-top: 1px solid var(--clr-border);
+  border-top: 1px solid rgba(0,0,0,0.06);
 }
 
 /* ---- Deadline line (Sunday 21:00) ---- */
@@ -982,56 +1208,75 @@ async function resetWeekplan() {
 /* ---- Rooster background bands ---- */
 .wp-rooster-band {
   position: absolute;
-  left: 1px; right: 1px;
-  border-radius: 3px;
+  left: 0; right: 0;
+  border-radius: 2px;
   display: flex;
   align-items: flex-start;
-  padding: 1px 3px;
+  padding: 2px 4px;
   overflow: hidden;
   z-index: 1;
 }
 
+/* Les-banden: stevige blauwe achtergrond */
 .wp-band-les {
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.15);
+  background: rgba(99, 102, 241, 0.12);
+  border-left: 3px solid rgba(99, 102, 241, 0.5);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.wp-band-les:hover { background: rgba(99, 102, 241, 0.16); border-color: rgba(99, 102, 241, 0.35); }
+.wp-band-les:hover { background: rgba(99, 102, 241, 0.2); border-left-color: var(--clr-accent); }
 
+/* Bezet-banden: diagonale strepen, duidelijk "geblokkeerd" */
 .wp-band-bezet {
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.15);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      rgba(245, 158, 11, 0.07),
+      rgba(245, 158, 11, 0.07) 4px,
+      rgba(245, 158, 11, 0.15) 4px,
+      rgba(245, 158, 11, 0.15) 8px
+    );
+  border-left: 3px solid rgba(245, 158, 11, 0.5);
+}
+
+/* Vrij-banden */
+.wp-band-vrij {
+  background: rgba(16, 185, 129, 0.06);
+  border-left: 3px solid rgba(16, 185, 129, 0.3);
 }
 
 .wp-band-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--clr-accent);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: rgba(99, 102, 241, 0.7);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.65;
-  line-height: 1.2;
+  line-height: 1.1;
   position: sticky;
   top: 0;
+  letter-spacing: 0.02em;
 }
 
-.wp-band-bezet .wp-band-label { color: #d97706; }
+.wp-band-bezet .wp-band-label { color: rgba(217, 119, 6, 0.6); font-weight: 700; }
+.wp-band-vrij .wp-band-label { color: rgba(5, 150, 105, 0.6); }
 
-.wp-band-selected { background: rgba(99, 102, 241, 0.22) !important; border-color: var(--clr-accent) !important; }
-.wp-band-selected .wp-band-label { opacity: 1; }
+.wp-band-selected {
+  background: rgba(99, 102, 241, 0.22) !important;
+  border-left-color: var(--clr-accent) !important;
+}
+.wp-band-selected .wp-band-label { color: var(--clr-accent); }
 
 .wp-band-drag-match {
-  background: rgba(16, 185, 129, 0.15) !important;
-  border-color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.18) !important;
+  border-left-color: #10b981 !important;
   animation: band-pulse 0.8s ease-in-out infinite;
 }
-.wp-band-drag-match .wp-band-label { opacity: 1; color: #059669; }
+.wp-band-drag-match .wp-band-label { color: #059669; }
 
 @keyframes band-pulse {
   0%, 100% { box-shadow: inset 0 0 0 0 rgba(16, 185, 129, 0.1); }
-  50% { box-shadow: inset 0 0 8px 2px rgba(16, 185, 129, 0.2); }
+  50% { box-shadow: inset 0 0 8px 2px rgba(16, 185, 129, 0.25); }
 }
 
 /* ---- Drop indicator ---- */
@@ -1056,15 +1301,15 @@ async function resetWeekplan() {
   50% { opacity: 1; }
 }
 
-/* ---- Placed tasks on timeline (compact, like kanban klaar/ingediend) ---- */
+/* ---- Placed tasks on timeline ---- */
 .wp-tl-taak {
   position: absolute;
-  left: 2px; right: 2px;
-  background: var(--clr-surface);
+  left: 3px; right: 3px;
+  background: white;
   border-radius: 4px;
-  border-left: 3px solid var(--clr-todo);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  padding: 0 4px;
+  border-left: 4px solid var(--clr-todo);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.04);
+  padding: 1px 5px;
   overflow: hidden;
   cursor: grab;
   z-index: 3;
@@ -1072,11 +1317,11 @@ async function resetWeekplan() {
   user-select: none;
   display: flex;
   align-items: center;
-  font-size: 0.7rem;
-  line-height: 1;
+  font-size: 0.72rem;
+  line-height: 1.1;
 }
 
-.wp-tl-taak:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.18); z-index: 4; }
+.wp-tl-taak:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.06); z-index: 4; }
 .wp-tl-taak.dragging { opacity: 0.4; }
 .wp-tl-taak:active { cursor: grabbing; }
 
@@ -1085,18 +1330,36 @@ async function resetWeekplan() {
 .wp-tl-taak.hg-wiskunde { border-left-color: var(--clr-wiskunde); }
 .wp-tl-taak.hg-project { border-left-color: var(--clr-project); }
 
-/* Rooster tasks: subtle blue tint */
+/* Rooster tasks: dashed border, white background */
 .wp-tl-taak.is-rooster {
   border-left-style: dashed;
-  background: rgba(99, 102, 241, 0.06);
+  background: white;
 }
 
-/* Huistaken: subtle warm tint */
+/* Huistaken: clean white card (default) */
 .wp-tl-taak.is-huistaak {
-  background: rgba(251, 191, 36, 0.06);
+  background: white;
 }
 
-.wp-tl-taak.status-klaar { opacity: 0.4; }
+/* Klaar: strikethrough + faded */
+.wp-tl-taak.is-klaar {
+  opacity: 0.45;
+  text-decoration: line-through;
+  text-decoration-color: rgba(0,0,0,0.3);
+}
+.wp-tl-taak.is-klaar .tl-code,
+.wp-tl-taak.is-klaar .tl-duur { text-decoration: line-through; text-decoration-color: inherit; }
+
+/* Overdue: red warning */
+.wp-tl-taak.is-overdue {
+  border-left-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  animation: overdue-pulse 2s ease-in-out infinite;
+}
+@keyframes overdue-pulse {
+  0%, 100% { box-shadow: 0 1px 4px rgba(239,68,68,0.15), 0 0 0 1px rgba(239,68,68,0.1); }
+  50% { box-shadow: 0 1px 4px rgba(239,68,68,0.35), 0 0 0 2px rgba(239,68,68,0.2); }
+}
 
 .tl-compact-row {
   display: flex;
@@ -1106,8 +1369,9 @@ async function resetWeekplan() {
   min-width: 0;
 }
 
-.tl-code { font-weight: 700; color: var(--clr-accent); white-space: nowrap; }
-.tl-duur { font-weight: 600; color: var(--clr-text-muted); white-space: nowrap; margin-left: auto; }
+.tl-code { font-weight: 800; font-size: 0.72rem; color: var(--clr-accent); white-space: nowrap; }
+.tl-duur { font-weight: 700; font-size: 0.65rem; color: var(--clr-text-muted); white-space: nowrap; margin-left: auto; background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 3px; }
+.tl-duur.tl-duur-custom { background: #fff7ed; color: #d97706; }
 
 .tl-keten { font-size: 0.55rem; }
 .tl-keten .keten-stap { width: 0.9rem; height: 0.9rem; font-size: 0.5rem; }
@@ -1119,6 +1383,28 @@ async function resetWeekplan() {
 }
 .wp-tl-taak:hover .tl-unplan { opacity: 1; }
 .tl-unplan:hover { color: #ef4444; }
+
+/* Resize handle */
+.tl-resize-handle {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 6px;
+  cursor: ns-resize;
+  border-radius: 0 0 4px 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+  background: linear-gradient(transparent, rgba(0,0,0,0.12));
+}
+.wp-tl-taak:hover .tl-resize-handle { opacity: 1; }
+.tl-resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 50%; bottom: 1px;
+  transform: translateX(-50%);
+  width: 16px; height: 2px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 1px;
+}
 
 /* ---- Drag highlights (chain related) ---- */
 .wp-tl-taak.drag-related-ok,
@@ -1257,7 +1543,7 @@ async function resetWeekplan() {
 .kanban-kaart.hg-talen { border-left-color: var(--clr-talen); }
 .kanban-kaart.hg-wiskunde { border-left-color: var(--clr-wiskunde); }
 .kanban-kaart.hg-project { border-left-color: var(--clr-project); }
-.kanban-kaart.is-rooster { border-left-style: dashed; background: rgba(99, 102, 241, 0.04); }
+.kanban-kaart.is-rooster { border-left-style: dashed; background: white; }
 
 .kaart-top { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.3rem; }
 .kaart-top .flags { margin-left: auto; display: flex; gap: 0.25rem; }
@@ -1269,6 +1555,73 @@ async function resetWeekplan() {
 .kaart-tekst { margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--clr-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .wp-sb-leeg { color: var(--clr-text-muted); font-size: 0.8rem; font-style: italic; padding: 1.5rem 0; text-align: center; }
+
+/* ---- "Nu" indicator ---- */
+.wp-nu-line {
+  position: absolute;
+  left: 0; right: 0;
+  height: 0;
+  border-top: 2px solid #ef4444;
+  z-index: 6;
+  pointer-events: none;
+}
+.wp-nu-dot {
+  position: absolute;
+  left: -5px; top: -5px;
+  width: 8px; height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+}
+
+/* Today column highlight */
+.wp-col-header.is-vandaag {
+  background: rgba(99, 102, 241, 0.08);
+}
+.wp-col-header.is-vandaag .wp-col-naam {
+  color: var(--clr-accent);
+}
+.wp-tl-col.is-vandaag .wp-tl-body {
+  background: rgba(99, 102, 241, 0.03);
+}
+
+/* Check button on compact cards */
+.tl-check-btn {
+  width: 14px; height: 14px;
+  border: 1.5px solid var(--clr-border);
+  border-radius: 3px;
+  background: white;
+  color: transparent;
+  font-size: 0.55rem; font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+}
+.tl-check-btn:hover { border-color: #059669; color: #059669; background: #ecfdf5; }
+.tl-check-btn.checked { background: #059669; border-color: #059669; color: white; }
+
+/* Vak label on compact cards (top row) */
+.tl-vak {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: var(--clr-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tl-overdue-icon {
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: #ef4444;
+  background: #fef2f2;
+  border-radius: 50%;
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
 
 /* ---- Responsive ---- */
 @media (max-width: 900px) {
