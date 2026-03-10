@@ -137,3 +137,12 @@ export async function removeMember(memberId) {
     .eq('id', memberId);
   if (error) throw error;
 }
+
+// ---- Push notifications ----
+
+export async function notifyTaskKlaar(plannerId, taskLabel) {
+  const { error } = await supabase.functions.invoke('send-push', {
+    body: { plannerId, taskLabel },
+  });
+  if (error) console.warn('Push notification failed:', error);
+}

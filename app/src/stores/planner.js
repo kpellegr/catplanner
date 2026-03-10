@@ -221,6 +221,13 @@ async function updateVoortgang(id, update) {
   if (isReadOnly.value) return;
   state.voortgang[id] = { ...(state.voortgang[id] || { status: 'open', minutenGewerkt: 0 }), ...update };
   await save('voortgang');
+
+  // Notify other members when a task is marked as klaar
+  if (update.status === 'klaar' && state.plannerId) {
+    const taak = alleTaken.value.find(t => t.id === id);
+    const label = taak ? `${taak.code || ''} ${taak.omschrijving || ''}`.trim() : id;
+    sync.notifyTaskKlaar(state.plannerId, label).catch(console.warn);
+  }
 }
 
 async function planTaak(id, dag) {

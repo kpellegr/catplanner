@@ -3,6 +3,7 @@
     <header class="dash-header">
       <h1>Catplanner</h1>
       <div class="header-right">
+        <NotificatieBel />
         <span class="user-info">{{ profile?.display_name || auth.state.user?.email }}</span>
         <button class="btn-logout" @click="auth.signOut()">Uitloggen</button>
       </div>
@@ -51,6 +52,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../stores/auth.js';
 import * as sync from '../stores/sync.js';
+import NotificatieBel from '../components/NotificatieBel.vue';
 
 const router = useRouter();
 const auth = useAuth();

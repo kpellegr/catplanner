@@ -10,3 +10,13 @@ app.mount('#app');
 
 // Initialize auth
 useAuth().init();
+
+// Register service worker for PWA + push notifications
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
+    // Check for updates immediately
+    reg.update();
+  }).catch((err) => {
+    console.warn('SW registration failed:', err);
+  });
+}
