@@ -1,24 +1,30 @@
 import { reactive, computed } from 'vue';
-// Parser is now called from FileUpload before data reaches the store
-
-const DB_NAME = 'catplanner';
-const DB_VERSION = 1;
+import * as sync from './sync.js';
 
 // ---- State ----
 
 const DAGEN = ['ma', 'di', 'wo', 'do', 'vr'];
 
 const state = reactive({
-  weken: [],        // parsed week data: [{ metadata, sections }]
-  voortgang: {},    // { [taakId]: { status, minutenGewerkt } }
-  planning: {},     // { [taakId]: 'ma'|'di'|'wo'|'do'|'vr' }
-  lesBlokken: {},   // { 'P3W4_ma': ['BIO','CH','LO'], ... }
+  weken: [],
+  voortgang: {},
+  planning: {},
+  lesBlokken: {},
   loaded: false,
+  // Multi-user
+  plannerId: null,
+  userRole: null,  // 'eigenaar' | 'editor' | 'viewer'
 });
+
+let unsubscribe = null;
+let savingKeys = new Set(); // prevent echo from realtime
 
 // ---- Computed ----
 
 const STATUSSEN = ['open', 'bezig', 'klaar', 'ingediend'];
+
+const isReadOnly = computed(() => state.userRole === 'viewer');
+const isEigenaar = computed(() => state.userRole === 'eigenaar');
 
 const alleTaken = computed(() => {
   const taken = [];
@@ -27,7 +33,6 @@ const alleTaken = computed(() => {
       for (const taak of section.taken) {
         const id = taakId(taak, week.metadata);
         const voortgang = state.voortgang[id] || { status: 'open', minutenGewerkt: 0 };
-        // Migrate legacy 'todo' status
         if (voortgang.status === 'todo') voortgang.status = 'open';
         taken.push({
           ...taak,
@@ -74,6 +79,65 @@ const stats = computed(() => {
   };
 });
 
+// ---- Init (called after auth) ----
+
+async function init() {
+  // Find existing planner or create one
+  let info = await sync.findMyPlanner();
+  if (!info) {
+    const id = await sync.createPlanner();
+    info = { plannerId: id, role: 'eigenaar' };
+  }
+
+  state.plannerId = info.plannerId;
+  state.userRole = info.role;
+
+  // Load data
+  const data = await sync.loadPlanner(state.plannerId);
+  state.weken = data.weken || [];
+  state.voortgang = data.voortgang || {};
+  state.planning = data.planning || {};
+  state.lesBlokken = data.lesBlokken || {};
+  state.loaded = true;
+
+  // Subscribe to realtime changes
+  if (unsubscribe) unsubscribe();
+  unsubscribe = sync.subscribeToPlanner(state.plannerId, (key, data) => {
+    // Skip echo from own saves
+    if (savingKeys.has(key)) return;
+    if (key === 'weken') state.weken = data || [];
+    else if (key === 'voortgang') state.voortgang = data || {};
+    else if (key === 'planning') state.planning = data || {};
+    else if (key === 'lesBlokken') state.lesBlokken = data || {};
+  });
+}
+
+// ---- Persistence ----
+
+async function save(key) {
+  if (!state.plannerId) return;
+
+  const dataMap = {
+    weken: state.weken,
+    voortgang: state.voortgang,
+    planning: state.planning,
+    lesBlokken: state.lesBlokken,
+  };
+
+  const keysToSave = key ? [key] : Object.keys(dataMap);
+
+  for (const k of keysToSave) {
+    savingKeys.add(k);
+    try {
+      await sync.saveData(state.plannerId, k, JSON.parse(JSON.stringify(dataMap[k])));
+    } catch (e) {
+      console.warn(`Save failed for ${k}:`, e);
+    }
+    // Clear echo flag after a short delay (realtime arrives async)
+    setTimeout(() => savingKeys.delete(k), 2000);
+  }
+}
+
 // ---- Actions ----
 
 function taakId(taak, metadata) {
@@ -81,16 +145,15 @@ function taakId(taak, metadata) {
 }
 
 async function importStudiewijzerData(filtered) {
-  // Replace all weeks — one active week at a time
+  if (isReadOnly.value) return;
   state.weken = [filtered];
   state.voortgang = {};
   state.planning = {};
-
   await save();
 }
 
 async function editTaak(id, updates) {
-  // Find the task in the source data and update it
+  if (isReadOnly.value) return;
   for (const week of state.weken) {
     for (const section of week.sections) {
       for (const taak of section.taken) {
@@ -99,7 +162,6 @@ async function editTaak(id, updates) {
 
         const oldId = id;
 
-        // Apply updates to source
         if (updates.code !== undefined) taak.code = updates.code;
         if (updates.omschrijving !== undefined) taak.omschrijving = updates.omschrijving;
         if (updates.minuten !== undefined) {
@@ -108,27 +170,22 @@ async function editTaak(id, updates) {
             : taak.tijd;
         }
 
-        // Handle vak change: move task to matching section
         if (updates.vak !== undefined && updates.vak !== section.vak) {
           const ti = section.taken.indexOf(taak);
           if (ti >= 0) section.taken.splice(ti, 1);
           taak.vak = updates.vak;
-          let target = week.sections.find(
-            (s) => s.vak === updates.vak
-          );
+          let target = week.sections.find((s) => s.vak === updates.vak);
           if (!target) {
             target = { hoofdgroep: section.hoofdgroep, vak: updates.vak, taken: [] };
             week.sections.push(target);
           }
           target.taken.push(taak);
-          // Clean empty sections
           if (section.taken.length === 0) {
             const si = week.sections.indexOf(section);
             if (si >= 0) week.sections.splice(si, 1);
           }
         }
 
-        // Migrate voortgang/planning if ID changed
         const newId = taakId(taak, week.metadata);
         if (newId !== oldId) {
           if (state.voortgang[oldId]) {
@@ -149,17 +206,19 @@ async function editTaak(id, updates) {
 }
 
 async function updateVoortgang(id, update) {
+  if (isReadOnly.value) return;
   state.voortgang[id] = { ...(state.voortgang[id] || { status: 'open', minutenGewerkt: 0 }), ...update };
-  await save();
+  await save('voortgang');
 }
 
 async function planTaak(id, dag) {
+  if (isReadOnly.value) return;
   if (dag) {
     state.planning[id] = dag;
   } else {
     delete state.planning[id];
   }
-  await save();
+  await save('planning');
 }
 
 function lesBlokKey(periode, week, dag) {
@@ -167,8 +226,9 @@ function lesBlokKey(periode, week, dag) {
 }
 
 async function updateLesBlokken(periode, week, dag, blokken) {
+  if (isReadOnly.value) return;
   state.lesBlokken[lesBlokKey(periode, week, dag)] = blokken;
-  await save();
+  await save('lesBlokken');
 }
 
 function getLesBlokken(periode, week, dag) {
@@ -176,78 +236,21 @@ function getLesBlokken(periode, week, dag) {
 }
 
 async function verwijderWeek(periode, week) {
+  if (isReadOnly.value) return;
   state.weken = state.weken.filter(
     (w) => !(w.metadata.periode === periode && w.metadata.week === week)
   );
-  await save();
+  await save('weken');
 }
 
 async function resetAlles() {
+  if (!isEigenaar.value) return;
   state.weken = [];
   state.voortgang = {};
   state.planning = {};
   state.lesBlokken = {};
   await save();
 }
-
-// ---- IndexedDB persistence ----
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains('state')) {
-        db.createObjectStore('state');
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function save() {
-  const db = await openDB();
-  const tx = db.transaction('state', 'readwrite');
-  const store = tx.objectStore('state');
-  store.put(JSON.parse(JSON.stringify(state.weken)), 'weken');
-  store.put(JSON.parse(JSON.stringify(state.voortgang)), 'voortgang');
-  store.put(JSON.parse(JSON.stringify(state.planning)), 'planning');
-  store.put(JSON.parse(JSON.stringify(state.lesBlokken)), 'lesBlokken');
-  return new Promise((resolve) => { tx.oncomplete = resolve; });
-}
-
-async function load() {
-  try {
-    const db = await openDB();
-    const tx = db.transaction('state', 'readonly');
-    const store = tx.objectStore('state');
-
-    const weken = await idbGet(store, 'weken');
-    const voortgang = await idbGet(store, 'voortgang');
-    const planning = await idbGet(store, 'planning');
-    const lesBlokken = await idbGet(store, 'lesBlokken');
-
-    if (weken) state.weken = weken;
-    if (voortgang) state.voortgang = voortgang;
-    if (planning) state.planning = planning;
-    if (lesBlokken) state.lesBlokken = lesBlokken;
-  } catch (e) {
-    console.warn('Could not load from IndexedDB:', e);
-  }
-  state.loaded = true;
-}
-
-function idbGet(store, key) {
-  return new Promise((resolve) => {
-    const req = store.get(key);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => resolve(null);
-  });
-}
-
-// Auto-load on import
-load();
 
 // ---- Export ----
 
@@ -259,6 +262,9 @@ export function usePlanner() {
     stats,
     DAGEN,
     STATUSSEN,
+    isReadOnly,
+    isEigenaar,
+    init,
     importStudiewijzerData,
     editTaak,
     updateVoortgang,

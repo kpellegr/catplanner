@@ -70,11 +70,11 @@
               :key="taak.id"
               class="kanban-kaart compact"
               :class="[hoofdgroepClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster', expanded: expandedKaarten[taak.id] }]"
-              draggable="true"
-              @dragstart="dragStart($event, taak)"
+              :draggable="!isReadOnly"
+              @dragstart="!isReadOnly && dragStart($event, taak)"
               @dragend="dragEnd"
               @click="toggleKaart(taak.id)"
-              @dblclick.stop="openEdit(taak)"
+              @dblclick.stop="!isReadOnly && openEdit(taak)"
             >
               <div class="kaart-compact-row">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
@@ -96,10 +96,10 @@
               :key="taak.id"
               class="kanban-kaart"
               :class="[hoofdgroepClass(taak), { 'is-rooster': taak.tijd?.type === 'rooster' }]"
-              draggable="true"
-              @dragstart="dragStart($event, taak)"
+              :draggable="!isReadOnly"
+              @dragstart="!isReadOnly && dragStart($event, taak)"
               @dragend="dragEnd"
-              @dblclick="openEdit(taak)"
+              @dblclick="!isReadOnly && openEdit(taak)"
             >
               <div class="kaart-top">
                 <span v-if="taak.code" class="code">{{ taak.code }}</span>
@@ -152,7 +152,7 @@
 import { ref, reactive, computed } from 'vue';
 import { usePlanner } from '../stores/planner.js';
 
-const { alleTaken, updateVoortgang, editTaak } = usePlanner();
+const { alleTaken, updateVoortgang, editTaak, isReadOnly } = usePlanner();
 
 const verbergRooster = ref(false);
 const verbergHuistaken = ref(false);

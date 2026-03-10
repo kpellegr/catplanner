@@ -198,7 +198,13 @@ function detectSection(cells) {
   return { type: 'vak', naam: cleaned };
 }
 
-export function filterVoorDaan(parsed) {
+/**
+ * Filter parsed studiewijzer for a specific student profile.
+ * @param {object} parsed - Output of parseStudiewijzer()
+ * @param {object} profiel - { richting: 'WW'|'HW'|'MT', route: 'B'|'Z', wiskunde: '3u'|'4u'|'6u'|'8u' }
+ * @returns {{ metadata, sections, verworpen }}
+ */
+export function filterVoorProfiel(parsed, profiel) {
   const { metadata, sections } = parsed;
   const filtered = [];
   const verworpen = [];
@@ -208,13 +214,14 @@ export function filterVoorDaan(parsed) {
     const secVerworpen = [];
 
     for (const taak of section.taken) {
-      const reden = getFilterReden(taak);
+      const reden = getFilterRedenProfiel(taak, profiel);
       if (reden) {
         secVerworpen.push({ ...taak, hoofdgroep: section.hoofdgroep, vak: section.vak, filterReden: reden });
       } else {
         // Resolve route-specific times
         if (taak.tijd && taak.tijd.type === 'minuten_per_route') {
-          taak.tijd = { type: 'minuten', minuten: taak.tijd.Z };
+          const routeKey = profiel.route?.toUpperCase() || 'Z';
+          taak.tijd = { type: 'minuten', minuten: taak.tijd[routeKey] || taak.tijd.Z || taak.tijd.B };
         }
         secFiltered.push(taak);
       }
@@ -229,29 +236,53 @@ export function filterVoorDaan(parsed) {
   return { metadata, sections: filtered, verworpen };
 }
 
-function getFilterReden(taak) {
-  if (!taak.richting) return 'Geen richting opgegeven';
+/** Backwards-compatible wrapper for Daan's hardcoded profile */
+export function filterVoorDaan(parsed) {
+  return filterVoorProfiel(parsed, { richting: 'WW', route: 'Z', wiskunde: '8u' });
+}
+
+function getFilterRedenProfiel(taak, profiel) {
+  if (!taak.richting) return null; // geen richting = voor iedereen
 
   const r = taak.richting.toUpperCase().replace(/\s/g, '');
+  const myRichting = (profiel.richting || '').toUpperCase();
+  const myRoute = (profiel.route || '').toUpperCase();
+  const myWisk = (profiel.wiskunde || '').toUpperCase().replace(/\s/g, '');
 
-  if (r === 'B-ROUTE') return `B-route (richting: ${taak.richting})`;
+  // Route filtering
+  if (r === 'B-ROUTE' && myRoute !== 'B') return `B-route (jij volgt ${myRoute}-route)`;
+  if (r === 'Z-ROUTE' && myRoute !== 'Z') return `Z-route (jij volgt ${myRoute}-route)`;
+  if (r === 'B+Z') return null; // beide routes
 
-  const relevant =
-    r === 'WW' || r.includes('WW') || r === '6U' || r === '8U' ||
-    r === 'Z-ROUTE' || r === 'B+Z';
+  // Richting matching — check if task's richting includes student's richting
+  const richtingCombos = r.split(/[-+]/);
+  const isRichtingMatch = richtingCombos.some(part => part === myRichting) || r.includes(myRichting);
 
-  if (!relevant) {
-    const labels = {
-      'HW': 'Humane Wetenschappen',
-      'MT': 'Moderne Talen',
-      'MT-HW': 'MT/HW (niet WW)',
-      '3+4U': 'Wiskunde 3-4u (Daan doet 8u)',
-      'MT+OPTIE': 'MT + optie',
-    };
-    const label = labels[r] || taak.richting;
-    return `Andere richting: ${label}`;
+  // Wiskunde uren matching
+  const wiskLabels = ['3U', '4U', '6U', '8U', '3+4U'];
+  const isWiskLabel = wiskLabels.some(w => r === w || r === w.replace('+', '+'));
+  if (isWiskLabel) {
+    // "3+4U" matches both 3u and 4u
+    if (r === '3+4U') {
+      if (myWisk === '3U' || myWisk === '4U') return null;
+      return `Wiskunde ${taak.richting} (jij doet ${profiel.wiskunde})`;
+    }
+    if (r === myWisk) return null;
+    return `Wiskunde ${taak.richting} (jij doet ${profiel.wiskunde})`;
   }
 
+  // "MT+OPTIE" — only for MT students
+  if (r === 'MT+OPTIE') {
+    if (myRichting === 'MT') return null;
+    return `MT + optie (jij volgt ${profiel.richting})`;
+  }
+
+  // Standard richting check
+  if (!isRichtingMatch) {
+    return `Andere richting: ${taak.richting} (jij volgt ${profiel.richting})`;
+  }
+
+  // NVT check
   if (taak.tijd && taak.tijd.type === 'nvt') return 'Niet van toepassing (nvt)';
 
   return null;
