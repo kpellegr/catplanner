@@ -16,14 +16,20 @@
 
       <!-- Status samenvatting -->
       <div class="db-status">
-        <div class="db-status-line db-status-klaar">
-          {{ klaarCount }} taken afgewerkt ({{ klaarMin }}' van {{ totaalMin }}')
+        <div class="db-status-row">
+          <span class="db-badge db-badge-klaar">{{ klaarCount }}</span>
+          <span class="db-status-label">taken afgewerkt</span>
+          <span class="db-status-min">{{ klaarMin }}' van {{ totaalMin }}'</span>
         </div>
-        <div v-if="overdueCount" class="db-status-line db-status-rood">
-          {{ overdueCount }} taken achterstallig ({{ overdueMin }}')
+        <div v-if="overdueCount" class="db-status-row">
+          <span class="db-badge db-badge-rood">{{ overdueCount }}</span>
+          <span class="db-status-label">taken achterstallig</span>
+          <span class="db-status-min">{{ overdueMin }}'</span>
         </div>
-        <div v-if="ongeplandCount" class="db-status-line db-status-oranje">
-          {{ ongeplandCount }} taken niet ingepland ({{ ongeplandMin }}')
+        <div v-if="ongeplandCount" class="db-status-row">
+          <span class="db-badge db-badge-oranje">{{ ongeplandCount }}</span>
+          <span class="db-status-label">taken niet ingepland</span>
+          <span class="db-status-min">{{ ongeplandMin }}'</span>
         </div>
       </div>
 
@@ -249,29 +255,50 @@ function taakClass(taak, isVerleden) {
 
 /* Status samenvatting */
 .db-status {
-  padding: 14px 24px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--clr-border);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
 }
-.db-status-line {
+.db-status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--clr-bg);
+}
+.db-status-row:last-child {
+  border-bottom: none;
+}
+.db-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  min-width: 1.4em;
+  text-align: center;
+}
+.db-badge-klaar {
+  color: #059669;
+  background: #ecfdf5;
+}
+.db-badge-rood {
+  color: #dc2626;
+  background: #fef2f2;
+}
+.db-badge-oranje {
+  color: #b45309;
+  background: #fffbeb;
+}
+.db-status-label {
   font-size: 0.78rem;
-  font-weight: 600;
-  padding-left: 10px;
-  border-left: 3px solid transparent;
-}
-.db-status-klaar {
-  border-left-color: var(--clr-klaar);
   color: var(--clr-text);
 }
-.db-status-rood {
-  border-left-color: #ef4444;
-  color: #dc2626;
-}
-.db-status-oranje {
-  border-left-color: #f59e0b;
-  color: #b45309;
+.db-status-min {
+  font-size: 0.7rem;
+  color: var(--clr-text-muted);
+  margin-left: auto;
 }
 
 /* Section heading */
@@ -329,17 +356,17 @@ function taakClass(taak, isVerleden) {
 }
 
 .db-taak-klaar {
-  border-left-color: var(--clr-klaar);
+  border-left-color: #86cfac;
   opacity: 0.55;
 }
 .db-taak-gemist {
-  border-left-color: #ef4444;
+  border-left-color: #e07878;
 }
 .db-taak-rooster {
-  border-left-color: #6366f1;
+  border-left-color: #b4a7d6;
 }
 .db-taak-huiswerk {
-  border-left-color: #3b82f6;
+  border-left-color: #7eb8d8;
 }
 
 .db-dag {
@@ -383,7 +410,7 @@ function taakClass(taak, isVerleden) {
 .db-cta {
   display: block;
   text-align: center;
-  background: var(--clr-accent);
+  background: #7c6cad;
   color: white;
   padding: 12px;
   margin: 16px 24px;

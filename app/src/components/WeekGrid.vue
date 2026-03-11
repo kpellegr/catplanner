@@ -312,14 +312,14 @@ const verdictText = computed(() => {
   transition: opacity 0.15s;
 }
 
-/* Kleuren afgestemd op weekplanner */
-.wg-cel.vrij { background: #ffffff; }
-.wg-cel.klaar { background: var(--clr-klaar); }
-.wg-cel.gemist { background: #fca5a5; }
-.wg-cel.rooster { background: #6366f1; }
-.wg-cel.huiswerk { background: #3b82f6; }
-.wg-cel.les { background: #e0e7ff; }
-.wg-cel.bezet { background: #d1d5db; }
+/* Kleuren: soft pastel palette */
+.wg-cel.vrij { background: #f0f0ee; }
+.wg-cel.klaar { background: #86cfac; }
+.wg-cel.gemist { background: #e07878; }
+.wg-cel.rooster { background: #b4a7d6; }
+.wg-cel.huiswerk { background: #7eb8d8; }
+.wg-cel.les { background: #e0ddd6; }
+.wg-cel.bezet { background: #c8c8c8; }
 
 /* Footer */
 .wg-footer {
@@ -343,13 +343,13 @@ const verdictText = computed(() => {
   vertical-align: middle;
   margin-right: 2px;
 }
-.wg-dot.klaar { background: var(--clr-klaar); }
-.wg-dot.gemist { background: #fca5a5; }
-.wg-dot.rooster { background: #6366f1; }
-.wg-dot.huiswerk { background: #3b82f6; }
-.wg-dot.les { background: #e0e7ff; }
-.wg-dot.bezet { background: #d1d5db; }
-.wg-dot.vrij { background: #ffffff; border: 1px solid var(--clr-border); }
+.wg-dot.klaar { background: #86cfac; }
+.wg-dot.gemist { background: #e07878; }
+.wg-dot.rooster { background: #b4a7d6; }
+.wg-dot.huiswerk { background: #7eb8d8; }
+.wg-dot.les { background: #e0ddd6; }
+.wg-dot.bezet { background: #c8c8c8; }
+.wg-dot.vrij { background: #f0f0ee; border: 1px solid var(--clr-border); }
 
 .wg-verdict {
   padding: 4px 10px;
