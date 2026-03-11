@@ -47,6 +47,9 @@
         <nav>
           <!-- View switcher -->
           <div class="view-switcher">
+            <button v-if="state.weken.length" :class="{ active: view === 'dashboard' }" @click="setView('dashboard')" title="Dashboard (H)">
+              <Icon icon="mdi:view-dashboard-outline" width="18" height="18" />
+            </button>
             <button v-if="state.weken.length" :class="{ active: view === 'studiewijzer' }" @click="setView('studiewijzer')" title="Studiewijzer (S)">
               <Icon icon="mdi:book-open-page-variant-outline" width="18" height="18" />
             </button>
@@ -100,6 +103,8 @@
       <main>
         <FileUpload v-if="!isReadOnly" ref="fileUploadRef" @imported="setView('studiewijzer')" />
 
+        <DashboardView v-if="state.weken.length && view === 'dashboard'" />
+
         <KanbanBord v-if="state.weken.length && view === 'kanban'" />
 
         <WeekPlanner v-if="state.weken.length && view === 'weekplan'" />
@@ -142,6 +147,7 @@ import NotificatieBel from './NotificatieBel.vue';
 import WeekPlanner from './WeekPlanner.vue';
 import ConfiguratieView from './ConfiguratieView.vue';
 import StudiewijzerView from './StudiewijzerView.vue';
+import DashboardView from './DashboardView.vue';
 
 const props = defineProps({
   plannerId: { type: String, default: null },
@@ -242,6 +248,7 @@ function setView(v) {
   else if (v === 'week') { view.value = 'weekplan'; wpViewMode.value = 'week'; }
   else if (v === 'dag') { view.value = 'weekplan'; wpViewMode.value = 'dag'; }
   else if (v === 'studiewijzer') { view.value = 'studiewijzer'; }
+  else if (v === 'dashboard') { view.value = 'dashboard'; }
   else if (v === 'config') { view.value = 'config'; }
 }
 
@@ -249,7 +256,8 @@ function onKeydown(e) {
   // Skip if user is typing in an input/textarea/select
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
   if (!state.weken.length) return;
-  if (e.key === 'k' || e.key === 'K') setView('kanban');
+  if (e.key === 'h' || e.key === 'H') setView('dashboard');
+  else if (e.key === 'k' || e.key === 'K') setView('kanban');
   else if (e.key === 'w' || e.key === 'W') setView('week');
   else if (e.key === 'd' || e.key === 'D') setView('dag');
   else if (e.key === 's' || e.key === 'S') setView('studiewijzer');
