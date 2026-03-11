@@ -28,7 +28,10 @@
 
       <!-- Data rows -->
       <template v-for="uur in aantalUren" :key="uur">
-        <div class="grid-uur" :class="{ 'grid-middag': uur === 6 }">{{ uur }}</div>
+        <div class="grid-uur" :class="{ 'grid-middag': uur === 6 }">
+          <span class="uur-nr">{{ uur }}</span>
+          <span class="uur-tijd">{{ uurTijd(uur) }}</span>
+        </div>
         <div
           v-for="dag in dagen"
           :key="`${dag}-${uur}`"
@@ -122,6 +125,14 @@ const popupStyle = ref({});
 const dragSource = ref(null);  // { dag, uur }
 const dragOver = ref(null);    // { dag, uur }
 const dragCopy = ref(false);   // true when Alt/Option is held
+
+// Clock time for each lesson hour (uur 1 = 8:30, uur 2 = 9:30, etc.)
+function uurTijd(uur) {
+  const min = 8 * 60 + 30 + (uur - 1) * 60;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}:${m.toString().padStart(2, '0')}`;
+}
 
 function loadFromState() {
   const wr = state.weekRooster;
@@ -548,7 +559,7 @@ function parseRoosterMd(text) {
 
 .rooster-grid {
   display: grid;
-  grid-template-columns: 3rem repeat(7, 1fr);
+  grid-template-columns: 3.5rem repeat(7, 1fr);
   border: 1px solid var(--clr-border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -588,10 +599,15 @@ function parseRoosterMd(text) {
   font-size: 0.8rem;
   color: var(--clr-text-muted);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: var(--clr-bg);
+  gap: 0;
+  line-height: 1.2;
 }
+.uur-nr { font-size: 0.8rem; }
+.uur-tijd { font-size: 0.55rem; font-weight: 600; opacity: 0.6; }
 
 /* Midday separator between uur 5 and 6 */
 .grid-middag {

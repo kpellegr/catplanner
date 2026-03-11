@@ -30,6 +30,7 @@
         <span class="wp-pool-minuten">{{ poolRef?.totalMinuten ?? 0 }}'</span>
         <div class="wp-pool-resize-handle" @mousedown.prevent="onPoolResizeStart"></div>
       </div>
+      <div class="wp-time-gutter-header"></div>
       <div
         v-for="dag in zichtbareDagen"
         :key="'h-' + dag"
@@ -98,6 +99,15 @@
 
           <!-- Scrollable timeline -->
           <div ref="timelineRowRef" class="wp-timeline-row">
+            <!-- Time gutter -->
+            <div class="wp-time-gutter" :style="{ height: TOTAL_PX + 'px' }">
+              <span
+                v-for="h in 14"
+                :key="'t-' + h"
+                class="wp-time-label"
+                :style="{ top: ((h - 1) * BLOKKEN_PER_UUR + 2) * BLOK_PX + 'px' }"
+              >{{ h + 8 }}</span>
+            </div>
             <!-- Day columns -->
             <div
               v-for="dag in zichtbareDagen"
@@ -158,6 +168,16 @@
                   :style="{ top: nuBlok * BLOK_PX + 'px' }"
                 >
                   <span class="wp-nu-dot"></span>
+                  <span class="wp-nu-time">{{ nuTijd }}</span>
+                </div>
+
+                <!-- Deadline indicator: zondag 21:00 = "Indienen!" -->
+                <div
+                  v-if="dag === 'zo'"
+                  class="wp-nu-line wp-deadline-line"
+                  :style="{ top: DEADLINE_BLOK * BLOK_PX + 'px' }"
+                >
+                  <span class="wp-deadline-label">Indienen!</span>
                 </div>
 
                 <!-- Placed tasks -->
@@ -287,6 +307,7 @@ function colFlex() {
 const BLOK_PX_WEEK = 22;
 const BLOK_PX_DAG = 36;
 const BLOK_PX = computed(() => viewMode.value === 'dag' ? BLOK_PX_DAG : BLOK_PX_WEEK);
+const DEADLINE_BLOK = 50; // 21:00 = 12.5h after 8:30 = 750min / 15 = 50 blokken
 const BLOKKEN_PER_UUR = 4;   // 4 × 15 min = 60 min
 const TOTAL_BLOKKEN = 14 * BLOKKEN_PER_UUR; // 56 blocks
 const TOTAL_PX = computed(() => TOTAL_BLOKKEN * BLOK_PX.value);
@@ -1253,6 +1274,12 @@ const nuBlok = computed(() => {
   return blok;
 });
 
+const nuTijd = computed(() => {
+  const h = now.value.getHours();
+  const m = now.value.getMinutes();
+  return `${h}:${m.toString().padStart(2, '0')}`;
+});
+
 // Is a task in the past? (planned before "now" and not klaar)
 function isOverdue(taak) {
   if (!taak.geplandOp) return false;
@@ -1385,6 +1412,31 @@ function isOverdue(taak) {
 .cap-oranje { color: #d97706; background: #fffbeb; }
 .cap-rood { color: #dc2626; background: #fef2f2; }
 
+/* ---- Time gutter ---- */
+.wp-time-gutter-header {
+  width: 22px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--clr-border);
+}
+.wp-time-gutter {
+  width: 22px;
+  flex-shrink: 0;
+  position: relative;
+  border-right: 1px solid var(--clr-border);
+}
+.wp-time-label {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  font-size: 0.55rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  line-height: 1;
+  text-align: right;
+  padding-right: 3px;
+  transform: translateY(-50%);
+  font-variant-numeric: tabular-nums;
+}
 /* ---- Timeline row (gutter + 7 columns) ---- */
 .wp-timeline-row {
   display: flex;
@@ -1776,6 +1828,33 @@ function isOverdue(taak) {
   width: 8px; height: 8px;
   background: #ef4444;
   border-radius: 50%;
+}
+
+/* Nu time label on the red line */
+.wp-nu-time {
+  position: absolute;
+  right: 2px;
+  top: -0.95rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #ef4444;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* Deadline line on sunday */
+.wp-deadline-line {
+  border-top-style: dashed;
+}
+.wp-deadline-label {
+  position: absolute;
+  right: 2px;
+  top: -0.95rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #ef4444;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 /* Today column highlight */
