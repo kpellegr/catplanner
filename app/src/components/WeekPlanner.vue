@@ -1681,12 +1681,52 @@ function isOverdue(taak) {
 .keten-oranje { background: #fffbeb; color: #d97706; }
 .keten-rood { background: #fef2f2; color: #dc2626; }
 
-/* Day view card (reuses kanban card styles: .kaart-top, .code, .flags, .kaart-duur, .kaart-tekst) */
+/* Day view card styles (duplicated from TaakKaart since scoped CSS doesn't cross components) */
 .tl-day-card {
   width: 100%; min-width: 0;
 }
-.tl-day-card .kaart-top { margin-bottom: 0.15rem; }
-.tl-day-card .kaart-tekst { -webkit-line-clamp: 2; }
+.tl-day-card .kaart-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.15rem;
+}
+.tl-day-card .kaart-top .flags { margin-left: auto; display: flex; gap: 0.25rem; }
+.tl-day-card .code { font-size: 0.8rem; font-weight: 700; color: var(--clr-accent); }
+.tl-day-card .kaart-tekst {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--clr-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tl-day-card .kaart-duur {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--clr-text-muted);
+  background: var(--clr-bg);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.tl-day-card .kaart-duur.prominent {
+  font-size: 0.85rem;
+  background: var(--clr-accent-light);
+  color: var(--clr-accent);
+  padding: 0.15rem 0.5rem;
+}
+.tl-day-card .flags { display: flex; gap: 0.2rem; }
+.tl-day-card .flag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
 .tl-gepland-label {
   font-size: 0.7rem;
   color: var(--clr-text-muted);

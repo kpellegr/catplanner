@@ -103,7 +103,8 @@
 
         <KanbanBord v-if="state.weken.length && view === 'kanban'" />
 
-        <WeekPlanner v-if="state.weken.length && view === 'weekplan'" />
+        <DagMobileView v-if="state.weken.length && view === 'weekplan' && wpViewMode === 'dag' && isMobile" />
+        <WeekPlanner v-if="state.weken.length && view === 'weekplan' && !(wpViewMode === 'dag' && isMobile)" />
 
         <StudiewijzerView v-if="view === 'studiewijzer'" />
 
@@ -202,6 +203,7 @@ import WeekPlanner from './WeekPlanner.vue';
 import ConfiguratieView from './ConfiguratieView.vue';
 import StudiewijzerView from './StudiewijzerView.vue';
 import DashboardView from './DashboardView.vue';
+import DagMobileView from './DagMobileView.vue';
 
 const props = defineProps({
   plannerId: { type: String, default: null },
@@ -222,6 +224,7 @@ const showDeel = ref(false);
 const showProfile = ref(false);
 const showMobileMenu = ref(false);
 const allPlanners = ref([]);
+const isMobile = ref(window.innerWidth <= 700);
 
 const userEmail = computed(() => auth.state.user?.email || '');
 const userName = computed(() => {
@@ -335,6 +338,8 @@ if (typeof document !== 'undefined') {
   });
 }
 
+function onResize() { isMobile.value = window.innerWidth <= 700; }
+
 onMounted(async () => {
   if (!state.loaded || (props.plannerId && state.plannerId !== props.plannerId)) {
     await init(props.plannerId);
@@ -343,9 +348,11 @@ onMounted(async () => {
     allPlanners.value = await sync.getMyPlanners();
   } catch (_) { /* ignore */ }
   document.addEventListener('keydown', onKeydown);
+  window.addEventListener('resize', onResize);
 });
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown);
+  window.removeEventListener('resize', onResize);
 });
 </script>
 
