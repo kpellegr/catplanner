@@ -14,6 +14,7 @@ const state = reactive({
   weekRooster: { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} },
   configuratie: { vakken: {} },
   studiewijzer: [],  // raw parsed sections (ongefilterd, originele import)
+  eigenTaken: [],    // handmatig toegevoegde taken (overleeft imports)
   loaded: false,
   // Multi-user
   plannerId: null,
@@ -101,6 +102,30 @@ const alleTaken = computed(() => {
       }
     }
   }
+  // Merge eigen (handmatige) taken
+  for (const et of state.eigenTaken) {
+    const id = et.id;
+    const voortgang = state.voortgang[id] || { status: 'open', minutenGewerkt: 0 };
+    if (voortgang.status === 'todo') voortgang.status = 'open';
+    const planVal = state.planning[id] || null;
+    const geplandOp = planVal ? (typeof planVal === 'string' ? planVal : planVal.dag) : null;
+    const geplandBlok = planVal && typeof planVal === 'object' ? planVal.blok : null;
+    taken.push({
+      id,
+      code: et.code || '',
+      omschrijving: et.omschrijving || '',
+      vak: et.vak || 'Persoonlijk',
+      tijd: et.duur ? { type: 'minuten', minuten: et.duur } : null,
+      flags: et.flags || [],
+      week: et.week || null,
+      periode: et.periode || null,
+      voortgang,
+      geplandOp,
+      geplandBlok,
+      bron: 'eigen',
+    });
+  }
+
   return taken;
 });
 
@@ -179,6 +204,7 @@ async function init(plannerId = null, role = null) {
   state.weekRooster = data.weekRooster || { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} };
   state.configuratie = data.configuratie || { vakken: {} };
   state.studiewijzer = data.studiewijzer || [];
+  state.eigenTaken = data.eigenTaken || [];
   state.loaded = true;
 
   // Subscribe to realtime changes
@@ -193,6 +219,7 @@ async function init(plannerId = null, role = null) {
     else if (key === 'weekRooster') state.weekRooster = data || { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} };
     else if (key === 'configuratie') state.configuratie = data || { vakken: {} };
     else if (key === 'studiewijzer') state.studiewijzer = data || [];
+    else if (key === 'eigenTaken') state.eigenTaken = data || [];
   });
 
   return true;
@@ -211,6 +238,7 @@ async function save(key) {
     weekRooster: state.weekRooster,
     configuratie: state.configuratie,
     studiewijzer: state.studiewijzer,
+    eigenTaken: state.eigenTaken,
   };
 
   const keysToSave = key ? [key] : Object.keys(dataMap);
@@ -419,6 +447,48 @@ async function editTaak(id, updates) {
       }
     }
   }
+}
+
+// ---- Eigen taken (handmatig toegevoegd) ----
+
+async function addEigenTaak({ omschrijving, duur, vak, code }) {
+  if (isReadOnly.value) return;
+  const id = `EIGEN_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  // Inherit current week/periode if available
+  const meta = state.weken[0]?.metadata;
+  state.eigenTaken.push({
+    id,
+    omschrijving: omschrijving || '',
+    duur: duur || null,
+    vak: vak || 'Persoonlijk',
+    code: code || '',
+    flags: [],
+    week: meta?.week || null,
+    periode: meta?.periode || null,
+  });
+  await save('eigenTaken');
+  return id;
+}
+
+async function removeEigenTaak(id) {
+  if (isReadOnly.value) return;
+  state.eigenTaken = state.eigenTaken.filter(t => t.id !== id);
+  delete state.voortgang[id];
+  delete state.planning[id];
+  await save('eigenTaken');
+  await save('voortgang');
+  await save('planning');
+}
+
+async function editEigenTaak(id, updates) {
+  if (isReadOnly.value) return;
+  const taak = state.eigenTaken.find(t => t.id === id);
+  if (!taak) return;
+  if (updates.omschrijving !== undefined) taak.omschrijving = updates.omschrijving;
+  if (updates.duur !== undefined) taak.duur = updates.duur;
+  if (updates.vak !== undefined) taak.vak = updates.vak;
+  if (updates.code !== undefined) taak.code = updates.code;
+  await save('eigenTaken');
 }
 
 async function updateVoortgang(id, update) {
@@ -653,6 +723,7 @@ async function resetAlles() {
   state.weekRooster = { ma: {}, di: {}, wo: {}, do: {}, vr: {}, za: {}, zo: {} };
   state.configuratie = { vakken: {} };
   state.studiewijzer = [];
+  state.eigenTaken = [];
   await save();
 }
 
@@ -685,6 +756,9 @@ export function usePlanner() {
     includeTaak,
     excludeTaak,
     editTaak,
+    addEigenTaak,
+    removeEigenTaak,
+    editEigenTaak,
     updateVoortgang,
     planTaak,
     updateLesBlokken,

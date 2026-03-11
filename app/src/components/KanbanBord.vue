@@ -88,6 +88,35 @@
       </template>
     </template>
 
+    <!-- Add task button -->
+    <button v-if="!isReadOnly" class="add-taak-rij" @click="openAdd">
+      <Icon icon="mdi:plus" width="16" height="16" />
+      <span>Eigen taak toevoegen</span>
+    </button>
+
+  </div>
+
+  <!-- Add task modal -->
+  <div v-if="showAddModal" class="edit-overlay" @click.self="showAddModal = false">
+    <div class="edit-modal">
+      <h3>Nieuwe taak</h3>
+      <label>
+        <span>Omschrijving</span>
+        <textarea v-model="addForm.omschrijving" rows="2" placeholder="Wat moet je doen?" ref="addInput"></textarea>
+      </label>
+      <label>
+        <span>Duur (minuten)</span>
+        <input v-model.number="addForm.duur" type="number" min="0" placeholder="bv. 30" />
+      </label>
+      <label>
+        <span>Categorie</span>
+        <input v-model="addForm.vak" placeholder="bv. Persoonlijk, Piano, Sport..." />
+      </label>
+      <div class="edit-actions">
+        <button class="btn-save" @click="doAdd" :disabled="!addForm.omschrijving.trim()">Toevoegen</button>
+        <button @click="showAddModal = false">Annuleer</button>
+      </div>
+    </div>
   </div>
 
   <!-- Detail popup (compact card click) -->
@@ -134,6 +163,7 @@
         <input v-model.number="editForm.minuten" type="number" min="0" />
       </label>
       <div class="edit-actions">
+        <button v-if="editingTaak?.bron === 'eigen'" class="btn-delete" @click="doDelete">Verwijderen</button>
         <button class="btn-save" @click="saveEdit">Opslaan</button>
         <button @click="editingTaak = null">Annuleer</button>
       </div>
@@ -152,7 +182,7 @@ import { hoofdgroepClass, formatDuur, duurTooltip, flagTooltip, flagTooltips, us
 import TaakKaart from './TaakKaart.vue';
 import FilterBar from './FilterBar.vue';
 
-const { alleTaken, updateVoortgang, editTaak, isReadOnly, selectedTaakId, selectTaak, filters } = usePlanner();
+const { alleTaken, updateVoortgang, editTaak, addEigenTaak, removeEigenTaak, editEigenTaak, isReadOnly, selectedTaakId, selectTaak, filters } = usePlanner();
 
 onMounted(() => {
   if (selectedTaakId.value) {
@@ -341,6 +371,35 @@ function openDetail(taak) {
   detailTaak.value = taak;
 }
 
+// ---- Add eigen taak ----
+const showAddModal = ref(false);
+const addInput = ref(null);
+const addForm = reactive({ omschrijving: '', duur: null, vak: 'Persoonlijk' });
+
+function openAdd() {
+  addForm.omschrijving = '';
+  addForm.duur = null;
+  addForm.vak = 'Persoonlijk';
+  showAddModal.value = true;
+  nextTick(() => addInput.value?.focus());
+}
+
+async function doAdd() {
+  if (!addForm.omschrijving.trim()) return;
+  await addEigenTaak({
+    omschrijving: addForm.omschrijving.trim(),
+    duur: addForm.duur || null,
+    vak: addForm.vak.trim() || 'Persoonlijk',
+  });
+  showAddModal.value = false;
+}
+
+async function doDelete() {
+  if (!editingTaak.value?.id) return;
+  await removeEigenTaak(editingTaak.value.id);
+  editingTaak.value = null;
+}
+
 // ---- Edit ----
 
 function openEdit(taak) {
@@ -353,12 +412,21 @@ function openEdit(taak) {
 
 async function saveEdit() {
   if (!editingTaak.value) return;
-  await editTaak(editingTaak.value.id, {
-    code: editForm.code,
-    vak: editForm.vak,
-    omschrijving: editForm.omschrijving,
-    minuten: editForm.minuten || null,
-  });
+  if (editingTaak.value.bron === 'eigen') {
+    await editEigenTaak(editingTaak.value.id, {
+      code: editForm.code,
+      vak: editForm.vak,
+      omschrijving: editForm.omschrijving,
+      duur: editForm.minuten || null,
+    });
+  } else {
+    await editTaak(editingTaak.value.id, {
+      code: editForm.code,
+      vak: editForm.vak,
+      omschrijving: editForm.omschrijving,
+      minuten: editForm.minuten || null,
+    });
+  }
   editingTaak.value = null;
 }
 
@@ -870,6 +938,42 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
   background: var(--clr-surface);
   color: var(--clr-text-muted);
   border-color: var(--clr-border);
+}
+
+/* ---- Add task button ---- */
+.add-taak-rij {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  background: var(--clr-surface);
+  border: 1px dashed var(--clr-border);
+  border-radius: var(--radius);
+  margin: 0.5rem 0.4rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  transition: all 0.15s;
+}
+.add-taak-rij:hover {
+  border-color: var(--clr-accent);
+  color: var(--clr-accent);
+  background: var(--clr-accent-light);
+}
+
+/* ---- Delete button ---- */
+.btn-delete {
+  background: #fef2f2 !important;
+  color: #ef4444 !important;
+  border-color: #fecaca !important;
+  margin-right: auto;
+}
+.btn-delete:hover {
+  background: #fee2e2 !important;
+  border-color: #ef4444 !important;
 }
 
 /* ---- Confetti ---- */
