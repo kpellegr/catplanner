@@ -222,8 +222,8 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
   font-variant-numeric: tabular-nums;
 }
 .keten-stap.keten-eigen {
-  outline: 2px solid currentColor;
-  outline-offset: -1px;
+  background: #1e1e1e;
+  color: #fff;
   font-weight: 900;
 }
 .keten-grijs { background: var(--clr-bg); color: var(--clr-text-muted); }

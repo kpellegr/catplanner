@@ -59,9 +59,6 @@
             <button v-if="state.weken.length" :class="{ active: view === 'kanban' }" @click="setView('kanban')" title="Kanban (K)">
               <Icon icon="mdi:view-week" width="18" height="18" />
             </button>
-            <button :class="{ active: view === 'rooster' }" @click="setView('rooster')" title="Weekrooster">
-              <Icon icon="mdi:grid" width="18" height="18" />
-            </button>
           </div>
 
           <!-- Spacer -->
@@ -103,8 +100,6 @@
 
         <WeekPlanner v-if="state.weken.length && view === 'weekplan'" />
 
-        <WeekRoosterEditor v-if="view === 'rooster'" />
-
         <StudiewijzerView v-if="view === 'studiewijzer'" />
 
         <ConfiguratieView v-if="view === 'config'" />
@@ -140,7 +135,6 @@ import FileUpload from './FileUpload.vue';
 import KanbanBord from './KanbanBord.vue';
 import DeelModal from './DeelModal.vue';
 import NotificatieBel from './NotificatieBel.vue';
-import WeekRoosterEditor from './WeekRoosterEditor.vue';
 import WeekPlanner from './WeekPlanner.vue';
 import ConfiguratieView from './ConfiguratieView.vue';
 import StudiewijzerView from './StudiewijzerView.vue';
@@ -240,7 +234,6 @@ function setView(v) {
   if (v === 'kanban') { view.value = 'kanban'; }
   else if (v === 'week') { view.value = 'weekplan'; wpViewMode.value = 'week'; }
   else if (v === 'dag') { view.value = 'weekplan'; wpViewMode.value = 'dag'; }
-  else if (v === 'rooster') { view.value = 'rooster'; }
   else if (v === 'studiewijzer') { view.value = 'studiewijzer'; }
   else if (v === 'config') { view.value = 'config'; }
 }
