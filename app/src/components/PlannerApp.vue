@@ -73,6 +73,9 @@
             <Icon icon="mdi:delete-outline" width="18" height="18" />
           </button>
 
+          <!-- DEV badge -->
+          <span v-if="isDev" class="dev-badge">DEV</span>
+
           <!-- Avatar / profile dropdown -->
           <div class="avatar-wrapper" @click.stop="showProfile = !showProfile">
             <img v-if="userAvatar" :src="userAvatar" class="avatar" referrerpolicy="no-referrer" />
@@ -88,6 +91,7 @@
                 Instellingen
               </button>
               <button class="dropdown-btn dropdown-logout" @click="onLogout">Uitloggen</button>
+              <div class="build-info">build {{ buildHash }}</div>
             </div>
           </div>
         </nav>
@@ -142,6 +146,9 @@ import StudiewijzerView from './StudiewijzerView.vue';
 const props = defineProps({
   plannerId: { type: String, default: null },
 });
+
+const isDev = import.meta.env.DEV;
+const buildHash = typeof __BUILD_HASH__ !== 'undefined' ? __BUILD_HASH__ : 'dev';
 
 const router = useRouter();
 const { state, stats, isReadOnly, isEigenaar, resetAlles, init, wpViewMode, activeView } = usePlanner();
@@ -564,6 +571,29 @@ nav {
   border-color: #ef4444;
   color: #ef4444;
   background: #fef2f2;
+}
+
+.build-info {
+  font-size: 0.6rem;
+  color: var(--clr-text-muted);
+  text-align: center;
+  padding: 0.3rem 0 0;
+  border-top: 1px solid var(--clr-border);
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- DEV badge ---- */
+.dev-badge {
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1.5px solid #fca5a5;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  line-height: 1;
 }
 
 /* ---- Responsive ---- */

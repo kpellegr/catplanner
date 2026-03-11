@@ -274,8 +274,9 @@ const gefilterdeTaken = computed(() => {
       if (filters.overdue && isOverdue(taak)) matchesWarning = true;
       if (filters.inTeDienen && status === 'klaar') matchesWarning = true;
       if (filters.conflict) {
-        const kleur = ketenStapKleur(taak);
-        if (kleur === 'keten-rood') matchesWarning = true;
+        // Show task if it's red OR if any task in its chain is red
+        const keten = taakKetenMap.value.get(taak.id);
+        if (keten && keten.some(t => ketenStapKleur(t) === 'keten-rood')) matchesWarning = true;
       }
       if (!matchesWarning) return false;
     }
@@ -472,8 +473,19 @@ function fireConfetti() {
 }
 
 // ---- Volgtijdelijkheid — via composable ----
+// Use ALL tasks for chain computation, not just filtered ones,
+// so conflict detection stays stable regardless of active filters
+const alleVakken = computed(() => {
+  const map = new Map();
+  for (const taak of alleTaken.value) {
+    const vak = taak.vak || '';
+    if (!map.has(vak)) map.set(vak, []);
+    map.get(vak).push(taak);
+  }
+  return Array.from(map.entries()).map(([naam, taken]) => ({ naam, taken }));
+});
 
-const { taakKetenMap, taakKeten, ketenTooltip, relatedIds } = useVolgordeKetens(vakken);
+const { taakKetenMap, taakKeten, ketenTooltip, relatedIds } = useVolgordeKetens(alleVakken);
 
 const statusRank = { open: 0, bezig: 1, klaar: 2, ingediend: 3 };
 
