@@ -26,19 +26,19 @@
     <template v-if="compact">
       <div class="kaart-compact-row">
         <span v-if="taak.code" class="code">{{ taak.code }}</span>
-        <span v-if="keten" class="kaart-keten" :title="ketenTooltipText">
+        <span v-if="keten" class="kaart-keten" :data-tooltip="ketenTooltipText">
           <template v-for="(stap, si) in keten" :key="stap.id">
             <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
             <span v-if="si < keten.length - 1" class="keten-pijl">&rarr;</span>
           </template>
         </span>
-        <span class="kaart-duur" :title="duurTooltipText">{{ duurText }}</span>
+        <span class="kaart-duur" :data-tooltip="duurTooltipText">{{ duurText }}</span>
       </div>
       <div v-if="isExpanded" class="kaart-expand">
         <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
         <div class="kaart-meta">
           <div class="flags">
-            <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagTooltip(flag)">{{ flag }}</span>
+            <span v-for="flag in taak.flags" :key="flag" class="flag" :data-tooltip="flagTooltip(flag)">{{ flag }}</span>
           </div>
         </div>
       </div>
@@ -55,13 +55,13 @@
         >&#10003;</button>
         <span v-if="taak.code" class="code">{{ taak.code }}</span>
         <div class="flags">
-          <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagTooltip(flag)">{{ flag }}</span>
+          <span v-for="flag in taak.flags" :key="flag" class="flag" :data-tooltip="flagTooltip(flag)">{{ flag }}</span>
         </div>
-        <span class="kaart-duur prominent" :title="duurTooltipText">{{ duurText }}</span>
+        <span class="kaart-duur prominent" :data-tooltip="duurTooltipText">{{ duurText }}</span>
       </div>
       <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
       <div class="kaart-bottom">
-        <span v-if="keten" class="kaart-keten" :title="ketenTooltipText">
+        <span v-if="keten" class="kaart-keten" :data-tooltip="ketenTooltipText">
           <template v-for="(stap, si) in keten" :key="stap.id">
             <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
             <span v-if="si < keten.length - 1" class="keten-pijl">&rarr;</span>

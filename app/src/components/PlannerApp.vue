@@ -8,7 +8,7 @@
       <header class="no-print">
         <!-- Left: home + title blocks + upload -->
         <div class="header-left">
-          <button class="btn-home" title="Overzicht" @click="goHome">
+          <button class="btn-home" data-tooltip="Overzicht" data-tooltip-pos="bottom" @click="goHome">
             <Icon icon="mdi:home-outline" width="20" height="20" />
           </button>
 
@@ -36,8 +36,11 @@
             <div class="subtitel">Werklast <span class="werklast-badge">{{ stats.totalMinuten }}'</span></div>
           </div>
 
+          <!-- Mini weekgrid -->
+          <WeekGrid v-if="state.weken.length" mini />
+
           <!-- Upload -->
-          <label v-if="!isReadOnly" class="tb-btn tb-upload" title="Studiewijzer importeren" @dragover.prevent @drop.prevent="onDrop">
+          <label v-if="!isReadOnly" class="tb-btn tb-upload" data-tooltip="Studiewijzer importeren" data-tooltip-pos="bottom" @dragover.prevent @drop.prevent="onDrop">
             <input ref="fileInput" type="file" accept=".md,.txt" multiple @change="onFiles" hidden />
             <Icon icon="mdi:upload-outline" width="16" height="16" />
           </label>
@@ -47,19 +50,19 @@
         <nav>
           <!-- View switcher -->
           <div class="view-switcher">
-            <button v-if="state.weken.length" :class="{ active: view === 'dashboard' }" @click="setView('dashboard')" title="Dashboard (H)">
+            <button v-if="state.weken.length" :class="{ active: view === 'dashboard' }" @click="setView('dashboard')" data-tooltip="Dashboard (H)" data-tooltip-pos="bottom">
               <Icon icon="mdi:view-dashboard-outline" width="18" height="18" />
             </button>
-            <button v-if="state.weken.length" :class="{ active: view === 'studiewijzer' }" @click="setView('studiewijzer')" title="Studiewijzer (S)">
+            <button v-if="state.weken.length" :class="{ active: view === 'studiewijzer' }" @click="setView('studiewijzer')" data-tooltip="Studiewijzer (S)" data-tooltip-pos="bottom">
               <Icon icon="mdi:book-open-page-variant-outline" width="18" height="18" />
             </button>
-            <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'week' }" @click="setView('week')" title="Week (W)">
+            <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'week' }" @click="setView('week')" data-tooltip="Week (W)" data-tooltip-pos="bottom">
               <Icon icon="mdi:calendar-multiselect-outline" width="18" height="18" />
             </button>
-            <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'dag' }" @click="setView('dag')" title="Dag (D)">
+            <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'dag' }" @click="setView('dag')" data-tooltip="Dag (D)" data-tooltip-pos="bottom">
               <Icon icon="mdi:view-day-outline" width="18" height="18" />
             </button>
-            <button v-if="state.weken.length" :class="{ active: view === 'kanban' }" @click="setView('kanban')" title="Kanban (K)">
+            <button v-if="state.weken.length" :class="{ active: view === 'kanban' }" @click="setView('kanban')" data-tooltip="Kanban (K)" data-tooltip-pos="bottom">
               <Icon icon="mdi:view-week" width="18" height="18" />
             </button>
           </div>
@@ -67,14 +70,16 @@
           <!-- Spacer -->
           <div class="tb-spacer"></div>
 
-          <!-- Supporting actions -->
-          <NotificatieBel />
-          <button v-if="isEigenaar" class="tb-btn" title="Delen" @click="showDeel = true">
-            <Icon icon="mdi:share-variant-outline" width="18" height="18" />
-          </button>
-          <button v-if="isEigenaar" class="tb-btn tb-danger" title="Reset" @click="onReset">
-            <Icon icon="mdi:delete-outline" width="18" height="18" />
-          </button>
+          <!-- Supporting actions (hidden on mobile, moved to profile dropdown) -->
+          <div class="desktop-actions">
+            <NotificatieBel ref="notifBelRef" />
+            <button v-if="isEigenaar" class="tb-btn" data-tooltip="Delen" data-tooltip-pos="bottom" @click="showDeel = true">
+              <Icon icon="mdi:share-variant-outline" width="18" height="18" />
+            </button>
+            <button v-if="isEigenaar" class="tb-btn tb-danger" data-tooltip="Reset" data-tooltip-pos="bottom" @click="onReset">
+              <Icon icon="mdi:delete-outline" width="18" height="18" />
+            </button>
+          </div>
 
           <!-- DEV badge -->
           <span v-if="isDev" class="dev-badge">DEV</span>
@@ -88,6 +93,21 @@
                 <span v-if="userName" class="profile-name">{{ userName }}</span>
                 <span class="profile-email">{{ userEmail }}</span>
                 <span v-if="profielLabel" class="profile-profiel">{{ profielLabel }}</span>
+              </div>
+              <!-- Mobile-only actions -->
+              <div class="mobile-menu-actions">
+                <button class="dropdown-btn" @click="showProfile = false; toggleNotif()">
+                  <Icon icon="mdi:bell-outline" width="14" height="14" />
+                  Meldingen
+                </button>
+                <button v-if="isEigenaar" class="dropdown-btn" @click="showProfile = false; showDeel = true">
+                  <Icon icon="mdi:share-variant-outline" width="14" height="14" />
+                  Delen
+                </button>
+                <button v-if="isEigenaar" class="dropdown-btn dropdown-danger" @click="showProfile = false; onReset()">
+                  <Icon icon="mdi:delete-outline" width="14" height="14" />
+                  Reset
+                </button>
               </div>
               <button v-if="!isReadOnly" class="dropdown-btn" @click="showProfile = false; setView('config')">
                 <Icon icon="mdi:cog-outline" width="14" height="14" />
@@ -148,6 +168,7 @@ import WeekPlanner from './WeekPlanner.vue';
 import ConfiguratieView from './ConfiguratieView.vue';
 import StudiewijzerView from './StudiewijzerView.vue';
 import DashboardView from './DashboardView.vue';
+import WeekGrid from './WeekGrid.vue';
 
 const props = defineProps({
   plannerId: { type: String, default: null },
@@ -163,6 +184,7 @@ const auth = useAuth();
 const view = activeView;
 const fileUploadRef = ref(null);
 const fileInput = ref(null);
+const notifBelRef = ref(null);
 const showDeel = ref(false);
 const showProfile = ref(false);
 const allPlanners = ref([]);
@@ -241,6 +263,10 @@ async function onReset() {
 async function onLogout() {
   showProfile.value = false;
   await auth.signOut();
+}
+
+function toggleNotif() {
+  notifBelRef.value?.toggle();
 }
 
 function setView(v) {
@@ -591,6 +617,27 @@ nav {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- Desktop/mobile action groups ---- */
+.desktop-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mobile-menu-actions {
+  display: none;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--clr-border);
+}
+
+.dropdown-danger:hover {
+  border-color: #ef4444;
+  color: #ef4444;
+  background: #fef2f2;
+}
+
 /* ---- DEV badge ---- */
 .dev-badge {
   font-size: 0.55rem;
@@ -608,14 +655,73 @@ nav {
 
 @media (max-width: 700px) {
   .header-left {
-    gap: 0.5rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
   }
   .planner-naam, .planner-select, .week-label {
     font-size: 1rem;
   }
+  .header-block {
+    padding-left: 0.5rem;
+  }
   .tb-spacer {
     display: none;
+  }
+  .desktop-actions {
+    display: none;
+  }
+  .tb-upload {
+    display: none !important;
+  }
+  .mobile-menu-actions {
+    display: flex;
+  }
+  .view-switcher button,
+  .tb-btn,
+  .btn-home {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+  .avatar {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-left {
+    gap: 0.3rem;
+  }
+  .btn-home {
+    width: 2rem;
+    height: 2rem;
+  }
+  .header-block {
+    padding-left: 0.4rem;
+    border-left-width: 1px;
+  }
+  .planner-naam, .planner-select, .week-label {
+    font-size: 0.85rem;
+  }
+  .subtitel, .datum-inline {
+    font-size: 0.7rem;
+  }
+  .werklast-badge {
+    font-size: 0.7rem;
+    padding: 0.05rem 0.35rem;
+  }
+  /* Hide mini weekgrid on very small screens */
+  .wg-mini {
+    display: none;
+  }
+  .view-switcher button,
+  .tb-btn {
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+  .avatar {
+    width: 2.2rem;
+    height: 2.2rem;
   }
 }
 </style>

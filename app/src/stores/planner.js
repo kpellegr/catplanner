@@ -499,7 +499,9 @@ async function updateVoortgang(id, update) {
   // Notify other members when a task is marked as klaar
   if (update.status === 'klaar' && state.plannerId) {
     const taak = alleTaken.value.find(t => t.id === id);
-    const label = taak ? `${taak.code || ''} ${taak.omschrijving || ''}`.trim() : id;
+    const min = taak ? (taak.voortgang.customMinuten || (taak.tijd?.type === 'minuten' ? taak.tijd.minuten : 0)) : 0;
+    const duur = min ? ` (${min}')` : '';
+    const label = taak ? `${taak.code || ''} ${taak.omschrijving || ''}`.trim() + duur : id;
     sync.notifyTaskKlaar(state.plannerId, label).catch(console.warn);
   }
 }

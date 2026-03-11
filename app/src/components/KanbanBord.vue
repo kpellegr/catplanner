@@ -104,7 +104,7 @@
       </div>
       <p class="detail-tekst">{{ detailTaak.omschrijving || '(geen omschrijving)' }}</p>
       <div v-if="detailTaak.flags?.length" class="detail-flags">
-        <span v-for="f in detailTaak.flags" :key="f" class="flag" :title="flagTooltip(f)">{{ f }}</span>
+        <span v-for="f in detailTaak.flags" :key="f" class="flag" :data-tooltip="flagTooltip(f)">{{ f }}</span>
       </div>
       <div v-if="geplandLabel(detailTaak)" class="detail-gepland">Gepland: {{ geplandLabel(detailTaak) }}</div>
       <div class="detail-actions">

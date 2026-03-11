@@ -1,9 +1,9 @@
 <template>
-  <div class="wg">
+  <div class="wg" :class="{ 'wg-mini': mini }">
     <!-- Grid: 8 rijen x 14 uur-blokken -->
     <div class="wg-grid">
       <!-- Uur labels bovenaan -->
-      <div v-if="!compact" class="wg-row wg-uur-row">
+      <div v-if="!compact && !mini" class="wg-row wg-uur-row">
         <div class="wg-dag-cell"></div>
         <div v-for="u in 14" :key="'u'+u" class="wg-uur-label">{{ uurLabel(u - 1) }}</div>
         <div class="wg-label-cell"></div>
@@ -11,7 +11,7 @@
 
       <!-- Per dag/ongepland een rij -->
       <div v-for="kol in kolommen" :key="kol.key" class="wg-row">
-        <div class="wg-dag-cell" :class="{ 'wg-vandaag': kol.key === vandaagDag, 'wg-ongepland-dag': kol.key === '_' }">
+        <div v-if="!mini" class="wg-dag-cell" :class="{ 'wg-vandaag': kol.key === vandaagDag, 'wg-ongepland-dag': kol.key === '_' }">
           {{ kol.label }}
         </div>
         <div
@@ -19,14 +19,14 @@
           :key="u"
           class="wg-cel"
           :class="uurClass(kol.key, u - 1)"
-          :title="uurTooltip(kol.key, u - 1)"
+          :data-tooltip="uurTooltip(kol.key, u - 1)" data-tooltip-pos="bottom"
         ></div>
-        <div class="wg-label-cell" :class="kol.minClass">{{ kol.minLabel }}</div>
+        <div v-if="!mini" class="wg-label-cell" :class="kol.minClass">{{ kol.minLabel }}</div>
       </div>
     </div>
 
     <!-- Footer -->
-    <div class="wg-footer">
+    <div v-if="!mini" class="wg-footer">
       <div class="wg-legende">
         <span><span class="wg-dot klaar"></span>klaar</span>
         <span><span class="wg-dot gemist"></span>gemist</span>
@@ -46,6 +46,7 @@ import { usePlanner } from '../stores/planner.js';
 
 const props = defineProps({
   compact: { type: Boolean, default: false },
+  mini: { type: Boolean, default: false },
 });
 
 const { alleTaken, state } = usePlanner();
@@ -362,4 +363,13 @@ const verdictText = computed(() => {
 .wg-verdict-oranje { border-left-color: #f59e0b; background: #fff7ed; color: #b45309; }
 .wg-verdict-rood { border-left-color: #ef4444; background: #fef2f2; color: #dc2626; }
 .wg-verdict-groen { border-left-color: var(--clr-klaar); background: #ecfdf5; color: #059669; }
+
+/* Mini mode: tiny heatmap for header */
+.wg-mini { padding: 0; }
+.wg-mini .wg-row { gap: 1px; margin-bottom: 1px; }
+.wg-mini .wg-cel {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+}
 </style>

@@ -59,6 +59,8 @@ async function toggle() {
     }
   }
 }
+
+defineExpose({ toggle, subscribed });
 </script>
 
 <style scoped>

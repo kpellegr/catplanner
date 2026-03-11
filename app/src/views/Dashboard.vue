@@ -211,4 +211,25 @@ h2 {
   cursor: pointer;
   font-size: 0.95rem;
 }
+
+@media (max-width: 480px) {
+  .dash-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .header-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .user-info {
+    font-size: 0.75rem;
+  }
+  .planner-kaart {
+    padding: 0.75rem;
+  }
+  .kaart-naam {
+    font-size: 0.9rem;
+  }
+}
 </style>
