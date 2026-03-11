@@ -949,6 +949,7 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
   padding: 0;
   color: var(--clr-text-muted);
   transition: all 0.15s;
