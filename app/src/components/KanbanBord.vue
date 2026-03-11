@@ -18,6 +18,15 @@
       <button :class="{ on: kanbanFilter === 'overdue' }" @click="kanbanFilter = 'overdue'">Achterstand</button>
       <button :class="{ on: kanbanFilter === 'today' }" @click="kanbanFilter = 'today'">Vandaag</button>
     </div>
+    <div class="kb-legenda">
+      <span class="kb-legenda-item" data-tip="Roostertaak (tijdens de les)"><span class="kb-legenda-swatch rooster-les"></span>R</span>
+      <span class="kb-legenda-item" data-tip="Roostertaak (zelfstandig)"><span class="kb-legenda-swatch rooster"></span>Z</span>
+      <span class="kb-legenda-item" data-tip="Huistaak"><span class="kb-legenda-swatch huistaak"></span>H</span>
+      <span class="kb-legenda-sep"></span>
+      <span class="kb-legenda-item" data-tip="Volgorde OK"><span class="kb-legenda-dot groen"></span></span>
+      <span class="kb-legenda-item" data-tip="Voorganger niet ingepland"><span class="kb-legenda-dot oranje"></span></span>
+      <span class="kb-legenda-item" data-tip="Volgorde-conflict"><span class="kb-legenda-dot rood"></span></span>
+    </div>
   </div>
 
   <div class="kanban-grid">
@@ -446,6 +455,62 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
   margin-bottom: 1rem;
   flex-wrap: wrap;
 }
+
+/* Legend */
+.kb-legenda {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  margin-left: auto;
+}
+.kb-legenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  cursor: default;
+  position: relative;
+}
+.kb-legenda-item[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--clr-text);
+  color: var(--clr-surface);
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  z-index: 100;
+  margin-top: 4px;
+  pointer-events: none;
+}
+.kb-legenda-swatch {
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+}
+.kb-legenda-swatch.rooster-les { background: #d97706; }
+.kb-legenda-swatch.rooster { background: #eab308; }
+.kb-legenda-swatch.huistaak { background: #3b82f6; }
+.kb-legenda-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--clr-border);
+}
+.kb-legenda-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.kb-legenda-dot.groen { background: #059669; }
+.kb-legenda-dot.oranje { background: #d97706; }
+.kb-legenda-dot.rood { background: #dc2626; }
 
 /* Segmented toggle */
 

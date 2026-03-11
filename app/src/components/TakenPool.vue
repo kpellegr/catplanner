@@ -45,6 +45,8 @@
           <TaakKaart
             v-for="taak in groep.taken"
             :key="taak.id"
+            :data-taak-id="taak.id"
+            :class="{ 'is-selected': selectedTaakId === taak.id }"
             :taak="taak"
             :draggable="!readOnly"
             :is-dragging="draggingTaakId === taak.id"
@@ -54,9 +56,12 @@
             :keten-stap-kleur="ketenStapKleur"
             :duur-text="formatDuurFn(taak)"
             :duur-tooltip-text="duurTooltipFn(taak)"
+            :gepland-label="geplandLabelFn(taak)"
+            :is-rooster-les="isRoosterLesFn(taak)"
             @dragstart="$emit('card-dragstart', $event, taak)"
             @dragend="$emit('card-dragend', $event)"
             @dblclick="$emit('card-dblclick', taak)"
+            @toggle-klaar="$emit('card-toggle-klaar', taak)"
           />
         </template>
       </template>
@@ -88,6 +93,7 @@ const props = defineProps({
   headerless: { type: Boolean, default: false },
   readOnly: { type: Boolean, default: false },
   isDragOver: { type: Boolean, default: false },
+  selectedTaakId: { type: String, default: null },
   draggingTaakId: { type: String, default: null },
   // Chain functions (provided by parent)
   taakKeten: { type: Function, default: () => null },
@@ -97,6 +103,10 @@ const props = defineProps({
   // Duration format functions (provided by parent)
   formatDuurFn: { type: Function, default: (t) => '' },
   duurTooltipFn: { type: Function, default: (t) => '' },
+  // Planned label function (provided by parent)
+  geplandLabelFn: { type: Function, default: () => '' },
+  // Rooster-op-les check function (provided by parent)
+  isRoosterLesFn: { type: Function, default: () => false },
   // Filter state (controlled by parent when using custom filters slot)
   filter: { type: String, default: null },
   roosterCount: { type: Number, default: 0 },
@@ -105,13 +115,13 @@ const props = defineProps({
 
 const emit = defineEmits([
   'dragenter', 'dragleave', 'drop',
-  'card-dragstart', 'card-dragend', 'card-dblclick',
+  'card-dragstart', 'card-dragend', 'card-dblclick', 'card-toggle-klaar',
   'update:filter', 'resize',
 ]);
 
 // Use shared vak grouping
 const takenRef = computed(() => props.taken);
-const { vakken: groepen, isVakOpen, toggleVak, allesOpen, toggleAlles, vakMinuten } = useVakGroepen(takenRef);
+const { vakken: groepen, openVakken, isVakOpen, toggleVak, allesOpen, toggleAlles, vakMinuten } = useVakGroepen(takenRef);
 
 const totalMinuten = computed(() => {
   return props.taken.reduce((sum, t) => (t.tijd?.type === 'minuten' ? sum + t.tijd.minuten : sum), 0);
@@ -153,7 +163,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', onResizeEnd);
 });
 
-defineExpose({ currentWidth, totalMinuten, allesOpen, toggleAlles });
+defineExpose({ currentWidth, totalMinuten, allesOpen, toggleAlles, openVakken });
 </script>
 
 <style scoped>
@@ -175,7 +185,7 @@ defineExpose({ currentWidth, totalMinuten, allesOpen, toggleAlles });
   border-right: 1px solid var(--clr-border);
   border-radius: 0;
   top: 0;
-  position: static;
+  position: relative;
   max-height: none;
   overflow-y: auto;
 }
@@ -266,6 +276,13 @@ defineExpose({ currentWidth, totalMinuten, allesOpen, toggleAlles });
 .vak-naam { font-weight: 700; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vak-samenvatting { font-size: 0.7rem; font-weight: 500; color: var(--clr-text-muted); white-space: nowrap; }
 
+/* ---- Selected state ---- */
+.is-selected {
+  outline: 2px solid var(--clr-accent);
+  outline-offset: -1px;
+  background: var(--clr-accent-light) !important;
+}
+
 /* ---- Empty state ---- */
 .pool-leeg {
   color: var(--clr-text-muted);
@@ -279,28 +296,26 @@ defineExpose({ currentWidth, totalMinuten, allesOpen, toggleAlles });
 .pool-resize-handle {
   position: absolute;
   top: 0;
-  right: -3px;
-  width: 6px;
+  right: 0;
+  width: 8px;
   height: 100%;
   cursor: col-resize;
   z-index: 10;
 }
 .pool-resize-handle::after {
-  content: '';
+  content: '⋮';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 2px;
-  height: 24px;
-  background: var(--clr-border);
-  border-radius: 1px;
-  opacity: 0;
-  transition: opacity 0.15s;
+  font-size: 0.9rem;
+  color: var(--clr-border);
+  line-height: 1;
+  transition: color 0.15s;
 }
 .pool-resize-handle:hover::after,
 .taken-pool:has(.pool-resize-handle:active)::after {
-  opacity: 1;
+  color: var(--clr-accent);
 }
 
 /* ---- Responsive ---- */

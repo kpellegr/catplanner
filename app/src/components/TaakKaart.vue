@@ -5,7 +5,8 @@
       hoofdgroepClass(taak),
       dragRelatedClass,
       {
-        'is-rooster': taak.tijd?.type === 'rooster',
+        'is-rooster-les': isRoosterLes,
+        'is-rooster': taak.tijd?.type === 'rooster' && !isRoosterLes,
         'is-klaar': taak.voortgang?.status === 'klaar' || taak.voortgang?.status === 'ingediend',
         'is-overdue': isOverdue,
         dragging: isDragging,
@@ -85,6 +86,7 @@ const props = defineProps({
   duurTooltipText: { type: String, default: '' },
   geplandLabel: { type: String, default: '' },
   isOverdue: { type: Boolean, default: false },
+  isRoosterLes: { type: Boolean, default: false },
 });
 
 defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
@@ -112,9 +114,10 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
 .kanban-kaart.is-overdue { border-left-color: #ef4444 !important; background: #fef2f2; }
 .kanban-kaart.is-overdue .kaart-gepland { color: #ef4444; font-weight: 700; }
 
-/* Type border colors: rooster=oranje, huistaak=blauw */
-.kanban-kaart.is-rooster { border-left-color: #d97706; }
-.kanban-kaart:not(.is-rooster) { border-left-color: #3b82f6; }
+/* Type border colors */
+.kanban-kaart.is-rooster-les { border-left-color: #d97706; }
+.kanban-kaart.is-rooster { border-left-color: #eab308; }
+.kanban-kaart:not(.is-rooster):not(.is-rooster-les) { border-left-color: #3b82f6; }
 
 /* ---- Top row ---- */
 .kaart-top {

@@ -15,6 +15,15 @@
           <button :class="{ on: sidebarFilter !== 'huistaken' }" @click="toggleFilter('rooster')">Rooster ({{ roosterCount }})</button>
         </div>
       </div>
+      <div class="wp-legenda">
+        <span class="wp-legenda-item" data-tip="Roostertaak (tijdens de les)"><span class="wp-legenda-swatch rooster-les"></span>R</span>
+        <span class="wp-legenda-item" data-tip="Roostertaak (zelfstandig)"><span class="wp-legenda-swatch rooster"></span>Z</span>
+        <span class="wp-legenda-item" data-tip="Huistaak"><span class="wp-legenda-swatch huistaak"></span>H</span>
+        <span class="wp-legenda-sep"></span>
+        <span class="wp-legenda-item" data-tip="Volgorde OK"><span class="wp-legenda-dot groen"></span></span>
+        <span class="wp-legenda-item" data-tip="Voorganger niet ingepland"><span class="wp-legenda-dot oranje"></span></span>
+        <span class="wp-legenda-item" data-tip="Volgorde-conflict"><span class="wp-legenda-dot rood"></span></span>
+      </div>
       <div class="wp-toolbar-actions">
         <button class="wp-sb-icon-btn" @click="autoSuggest" title="Rooster-taken automatisch inplannen">
           <Icon icon="mdi:lightning-bolt" width="14" height="14" />
@@ -73,13 +82,16 @@
         headerless
         :read-only="isReadOnly"
         :is-drag-over="dragOverTarget === '__pool__'"
+        :selected-taak-id="selectedTaakId"
         :dragging-taak-id="draggingTaak?.id"
         :taak-keten="taakKeten"
-        :keten-tooltip="ketenTooltip"
+        :keten-tooltip="ketenTooltipWP"
         :keten-stap-kleur="ketenStapKleur"
         :drag-related-class-fn="dragRelatedClass"
         :format-duur-fn="formatDuur"
         :duur-tooltip-fn="duurTooltip"
+        :gepland-label-fn="geplandLabel"
+        :is-rooster-les-fn="isRoosterOpLes"
         :filter="sidebarFilter"
         :rooster-count="roosterCount"
         :huistaken-count="huistakenCount"
@@ -89,6 +101,7 @@
         @card-dragstart="(e, taak) => onDragStart(e, taak)"
         @card-dragend="onDragEnd"
         @update:filter="onFilterUpdate"
+        @card-toggle-klaar="toggleKlaar"
       >
         <template #empty>
           {{ sidebarFilter === 'rooster' ? 'Geen roostertaken' : sidebarFilter === 'huistaken' ? 'Geen huistaken' : 'Alle taken ingepland!' }}
@@ -174,17 +187,19 @@
                     statusClass(placed.taak),
                     dragRelatedClass(placed.taak),
                     {
-                      'is-rooster': placed.taak.tijd?.type === 'rooster',
+                      'is-rooster-les': isRoosterOpLes(placed.taak),
+                      'is-rooster': placed.taak.tijd?.type === 'rooster' && !isRoosterOpLes(placed.taak),
                       'is-huistaak': placed.taak.tijd?.type !== 'rooster',
                       'is-klaar': placed.taak.voortgang.status === 'klaar' || placed.taak.voortgang.status === 'ingediend',
                       'is-overdue': isOverdue(placed.taak),
+                      'is-selected': selectedTaakId === placed.taak.id,
                       dragging: draggingTaak?.id === placed.taak.id,
                     }
                   ]"
                   :style="{ top: placed.blok * BLOK_PX + 'px', height: placed.blokken * BLOK_PX + 'px' }"
                   :draggable="!isReadOnly"
                   :title="compactTooltip(placed.taak)"
-                  @click="toggleVakFilter(placed.taak.vak)"
+                  @click="selectTaak(placed.taak)"
                   @dragstart="onDragStart($event, placed.taak)"
                   @dragend="onDragEnd"
                 >
@@ -198,9 +213,9 @@
                           :title="placed.taak.voortgang.status === 'klaar' ? 'Markeer als open' : 'Markeer als klaar'"
                           @click.stop="toggleKlaar(placed.taak)"
                         >✓</button>
-                        <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" title="Achterstand!">!</span>
+                        <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" :title="overdueTooltip(placed.taak)">!</span>
                         <span v-if="placed.taak.code" class="code">{{ placed.taak.code }}</span>
-                        <span v-if="taakKeten(placed.taak)" class="kaart-keten" :title="ketenTooltip(placed.taak)">
+                        <span v-if="taakKeten(placed.taak)" class="kaart-keten" :title="ketenTooltipWP(placed.taak)">
                           <template v-for="(stap, si) in taakKeten(placed.taak)" :key="stap.id">
                             <span class="keten-stap" :class="[ketenStapKleur(stap, placed.taak), { 'keten-eigen': stap.id === placed.taak.id }]">{{ stap.volgorde }}</span>
                             <span v-if="si < taakKeten(placed.taak).length - 1" class="keten-pijl">→</span>
@@ -219,9 +234,9 @@
                   <!-- Compact card in week view / side columns -->
                   <template v-else>
                     <div class="tl-compact-row">
-                      <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" title="Achterstand!">!</span>
+                      <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" :title="overdueTooltip(placed.taak)">!</span>
                       <span class="tl-code">{{ placed.taak.code || kortVak(placed.taak.vak) }}</span>
-                      <span v-if="taakKeten(placed.taak)" class="kaart-keten tl-keten" :title="ketenTooltip(placed.taak)">
+                      <span v-if="taakKeten(placed.taak)" class="kaart-keten tl-keten" :title="ketenTooltipWP(placed.taak)">
                         <template v-for="(stap, si) in taakKeten(placed.taak)" :key="stap.id">
                           <span class="keten-stap" :class="[ketenStapKleur(stap, placed.taak), { 'keten-eigen': stap.id === placed.taak.id }]">{{ stap.volgorde }}</span>
                           <span v-if="si < taakKeten(placed.taak).length - 1" class="keten-pijl">→</span>
@@ -248,7 +263,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { hoofdgroepClass, formatDuur as _formatDuur, duurTooltip as _duurTooltip, flagTooltips, useVolgordeKetens, useDragRelated } from '../composables/useTakenLogic.js';
@@ -302,6 +317,7 @@ const dropBlok = ref(null);
 const sidebarFilter = ref('rooster');
 const selectedVak = ref(null);
 const sidebarShowAll = ref(false);
+const selectedTaakId = ref(null);
 
 // ---- Helpers ----
 
@@ -324,7 +340,6 @@ function compactTooltip(taak) {
   if (taak.flags?.length) parts.push(`Flags: ${taak.flags.map(f => flagTooltips[f] || f).join(', ')}`);
   if (taak.voortgang.status === 'klaar') parts.push('✓ Klaar');
   if (isOverdue(taak)) parts.push('⚠ Achterstand!');
-  parts.push('Sleep onderrand om duur aan te passen');
   return parts.join('\n');
 }
 
@@ -340,6 +355,13 @@ function geplandLabel(taak) {
   const dag = dagKort[taak.geplandOp] || taak.geplandOp;
   if (taak.geplandBlok != null) return `${dag} ${blokToTijd(taak.geplandBlok)}`;
   return dag;
+}
+
+function overdueTooltip(taak) {
+  if (!isOverdue(taak)) return '';
+  const dag = dagLang[taak.geplandOp] || taak.geplandOp;
+  const tijd = taak.geplandBlok != null ? ` om ${blokToTijd(taak.geplandBlok)}` : '';
+  return `Achterstand: was gepland op ${dag}${tijd}`;
 }
 
 function taakBlokken(taak) {
@@ -414,6 +436,22 @@ function slotStyle(slot) {
     top: startBlok * BLOK_PX.value + 'px',
     height: BLOKKEN_PER_UUR * BLOK_PX.value + 'px',
   };
+}
+
+// Is an R-task placed on a matching lesson band?
+function isRoosterOpLes(taak) {
+  if (taak.tijd?.type !== 'rooster' || !taak.geplandOp || taak.geplandBlok == null) return false;
+  const slots = roosterSlots(taak.geplandOp);
+  const titels = matchingRoosterTitels(taak);
+  for (const slot of slots) {
+    if (slot.type !== 'les') continue;
+    if (!titels.has(slot.titel.toLowerCase())) continue;
+    const bandStart = (slot.uur - 1) * BLOKKEN_PER_UUR;
+    const bandEnd = bandStart + BLOKKEN_PER_UUR;
+    // Task overlaps with this lesson band
+    if (taak.geplandBlok < bandEnd && taak.geplandBlok + taakBlokken(taak) > bandStart) return true;
+  }
+  return false;
 }
 
 // ---- Volgtijdelijkheid (dependency chains) — via composable ----
@@ -494,6 +532,16 @@ function ketenStapKleur(stap) {
   if (hasConflict) return 'keten-rood';
   if (hasWarning) return 'keten-oranje';
   return 'keten-groen';
+}
+
+// Enhanced tooltip with conflict info
+function ketenTooltipWP(taak) {
+  const base = ketenTooltip(taak);
+  if (!base) return '';
+  const kleur = ketenStapKleur(taak);
+  if (kleur === 'keten-rood') return `${base}\n⚠ Volgorde-conflict: taken staan in verkeerde volgorde`;
+  if (kleur === 'keten-oranje') return `${base}\n⚠ Voorganger nog niet ingepland`;
+  return base;
 }
 
 const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenMap, ketenStapKleur);
@@ -701,9 +749,31 @@ const gefilterdeOngeplandMinuten = computed(() => {
 });
 
 // ---- Sidebar (handled by TakenPool component) ----
-function toggleFilter(f) { sidebarFilter.value = sidebarFilter.value === f ? null : f; selectedVak.value = null; }
-function onFilterUpdate(f) { sidebarFilter.value = f; selectedVak.value = null; }
-function toggleVakFilter(titel) { selectedVak.value = selectedVak.value === titel ? null : titel; }
+function toggleFilter(f) { sidebarFilter.value = sidebarFilter.value === f ? null : f; selectedVak.value = null; selectedTaakId.value = null; }
+function onFilterUpdate(f) { sidebarFilter.value = f; selectedVak.value = null; selectedTaakId.value = null; }
+function toggleVakFilter(titel) { selectedVak.value = selectedVak.value === titel ? null : titel; selectedTaakId.value = null; }
+
+function selectTaak(taak) {
+  // If already selected, deselect
+  if (selectedTaakId.value === taak.id) {
+    selectedTaakId.value = null;
+    selectedVak.value = null;
+    return;
+  }
+  // Switch to "Alle" so planned tasks are visible in sidebar
+  sidebarShowAll.value = true;
+  selectedVak.value = taak.vak;
+  selectedTaakId.value = taak.id;
+  // Ensure the vak group is open
+  if (poolRef.value?.openVakken && poolRef.value.openVakken[taak.vak] === false) {
+    poolRef.value.openVakken[taak.vak] = true;
+  }
+  // Scroll to the task in the sidebar after DOM update
+  nextTick(() => {
+    const el = document.querySelector(`.taken-pool [data-taak-id="${taak.id}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}
 
 // Band selection: clicked vak filter (matches equivalent vakken)
 function isBandSelected(slot) {
@@ -1117,6 +1187,60 @@ function isOverdue(taak) {
   flex-wrap: wrap;
 }
 .wp-toolbar-filters { display: flex; align-items: center; gap: 0.5rem; }
+.wp-legenda {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+}
+.wp-legenda-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  cursor: default;
+  position: relative;
+}
+.wp-legenda-item[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--clr-text);
+  color: var(--clr-surface);
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  z-index: 100;
+  margin-top: 4px;
+  pointer-events: none;
+}
+.wp-legenda-swatch {
+  width: 3px;
+  height: 12px;
+  border-radius: 1px;
+}
+.wp-legenda-swatch.rooster-les { background: #d97706; }
+.wp-legenda-swatch.rooster { background: #eab308; }
+.wp-legenda-swatch.huistaak { background: #3b82f6; }
+.wp-legenda-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--clr-border);
+}
+.wp-legenda-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.wp-legenda-dot.groen { background: #059669; }
+.wp-legenda-dot.oranje { background: #d97706; }
+.wp-legenda-dot.rood { background: #dc2626; }
+
 .wp-toolbar-actions { margin-left: auto; display: flex; gap: 2px; }
 
 .btn-expand {
@@ -1304,14 +1428,14 @@ function isOverdue(taak) {
   z-index: 1;
 }
 
-/* Les-banden: stevige blauwe achtergrond */
+/* Les-banden: zachte blauwe achtergrond */
 .wp-band-les {
-  background: rgba(99, 102, 241, 0.12);
-  border-left: 3px solid rgba(99, 102, 241, 0.5);
+  background: rgba(99, 102, 241, 0.06);
+  border-left: 3px solid rgba(99, 102, 241, 0.4);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.wp-band-les:hover { background: rgba(99, 102, 241, 0.2); border-left-color: var(--clr-accent); }
+.wp-band-les:hover { background: rgba(99, 102, 241, 0.14); border-left-color: var(--clr-accent); }
 
 /* Bezet-banden: zacht pastel, activiteiten */
 .wp-band-bezet {
@@ -1451,7 +1575,8 @@ function isOverdue(taak) {
 .wp-tl-taak:active { cursor: grabbing; }
 
 /* Type border colors: rooster=oranje, huistaak=blauw */
-.wp-tl-taak.is-rooster { border-left-color: #d97706; background: white; }
+.wp-tl-taak.is-rooster-les { border-left-color: #d97706; background: white; }
+.wp-tl-taak.is-rooster { border-left-color: #eab308; background: white; }
 .wp-tl-taak.is-huistaak { border-left-color: #3b82f6; background: white; }
 
 /* Klaar: strikethrough + faded */
@@ -1474,6 +1599,13 @@ function isOverdue(taak) {
   50% { box-shadow: 0 1px 4px rgba(239,68,68,0.35), 0 0 0 2px rgba(239,68,68,0.2); }
 }
 
+/* Selected task highlight */
+.wp-tl-taak.is-selected {
+  outline: 2px solid var(--clr-accent);
+  outline-offset: -1px;
+  z-index: 3;
+}
+
 .tl-compact-row {
   display: flex;
   align-items: center;
@@ -1488,6 +1620,12 @@ function isOverdue(taak) {
 
 .tl-keten { font-size: 0.55rem; }
 .tl-keten .keten-stap { width: 0.9rem; height: 0.9rem; font-size: 0.5rem; }
+
+/* Keten chain step colors (needed for inline chain rendering in timeline) */
+.keten-grijs { background: var(--clr-bg); color: var(--clr-text-muted); }
+.keten-groen { background: #ecfdf5; color: #059669; }
+.keten-oranje { background: #fffbeb; color: #d97706; }
+.keten-rood { background: #fef2f2; color: #dc2626; }
 
 /* Day view card (reuses kanban card styles: .kaart-top, .code, .flags, .kaart-duur, .kaart-tekst) */
 .tl-day-card {
