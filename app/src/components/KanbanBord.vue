@@ -1,5 +1,5 @@
 <template>
-  <FilterBar :ongepland-count="ongeplandCount" :overdue-count="overdueCount" :in-te-dienen-count="inTeDienenCount" :conflict-count="conflictCount">
+  <FilterBar :ongepland-count="ongeplandCount" :vandaag-count="vandaagCount" :overdue-count="overdueCount" :in-te-dienen-count="inTeDienenCount" :conflict-count="conflictCount">
     <template #expand>
       <button class="btn-expand" @click="toggleAlles" :title="allesOpen ? 'Alles dichtklappen' : 'Alles openklappen'">
         <span class="expand-icon" :class="{ open: allesOpen }">&#9656;</span>
@@ -7,13 +7,14 @@
     </template>
   </FilterBar>
 
-  <div class="kanban-grid">
+  <div class="kanban-grid" :style="{ gridTemplateColumns: gridCols }">
     <!-- Sticky column headers -->
     <div
-      v-for="kolom in kolommen"
+      v-for="(kolom, ki) in kolommen"
       :key="'h-' + kolom.status"
       class="kolom-header"
-      :class="`kolom-${kolom.status}`"
+      :class="[`kolom-${kolom.status}`, { 'kolom-focus': focusKolomIdx !== null && isFocusPair(ki) }]"
+      @click="focusKolom(ki)"
     >
       <h3>{{ kolom.label }}</h3>
       <span class="kolom-count">{{ kolomTaken(kolom.status).length }}</span>
@@ -44,7 +45,7 @@
       <!-- Expanded: 4 cells -->
       <template v-if="isVakOpen(vak.naam)">
         <div
-          v-for="kolom in kolommen"
+          v-for="(kolom, ki) in kolommen"
           :key="vak.naam + '-' + kolom.status"
           class="vak-cel"
           :class="[
@@ -63,7 +64,7 @@
             v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
             :key="taak.id"
             :taak="taak"
-            :compact="kolom.compact"
+            :compact="isKolomCompact(ki)"
             :is-expanded="!!expandedKaarten[taak.id]"
             :draggable="!isReadOnly"
             :is-dragging="draggingTaak?.id === taak.id"
@@ -204,6 +205,39 @@ const detailTaak = ref(null);
 const editingTaak = ref(null);
 const editForm = reactive({ code: '', vak: '', omschrijving: '', minuten: 0 });
 
+// ---- Column focus (wide/narrow) ----
+const focusKolomIdx = ref(null); // null = default layout
+
+const gridCols = computed(() => {
+  if (focusKolomIdx.value === null) return '2fr 2fr 1fr 1fr';
+  const idx = focusKolomIdx.value;
+  // Two broad columns: the focused one and its neighbor
+  let pairIdx;
+  if (idx >= kolommen.length - 1) {
+    // Last column: pair with previous
+    pairIdx = idx - 1;
+  } else {
+    pairIdx = idx + 1;
+  }
+  return kolommen.map((_, i) => (i === idx || i === pairIdx) ? '3fr' : '1fr').join(' ');
+});
+
+function focusKolom(idx) {
+  focusKolomIdx.value = focusKolomIdx.value === idx ? null : idx;
+}
+
+function isFocusPair(idx) {
+  if (focusKolomIdx.value === null) return false;
+  const fi = focusKolomIdx.value;
+  const pairIdx = fi >= kolommen.length - 1 ? fi - 1 : fi + 1;
+  return idx === fi || idx === pairIdx;
+}
+
+function isKolomCompact(idx) {
+  if (focusKolomIdx.value === null) return kolommen[idx].compact;
+  return !isFocusPair(idx);
+}
+
 const kolommen = [
   { status: 'open', label: 'Open', compact: false },
   { status: 'bezig', label: 'Bezig', compact: false },
@@ -220,6 +254,9 @@ const gefilterdeTaken = computed(() => {
 
     // Ongepland drill-down
     if (filters.alleenOngepland && taak.geplandOp) return false;
+
+    // Vandaag drill-down
+    if (filters.vandaag && !isVandaag(taak)) return false;
 
     // Status filter
     const status = taak.voortgang?.status || 'open';
@@ -248,6 +285,7 @@ const gefilterdeTaken = computed(() => {
 
 // Filter counts for FilterBar chips
 const ongeplandCount = computed(() => alleTaken.value.filter(t => !t.geplandOp).length);
+const vandaagCount = computed(() => alleTaken.value.filter(t => isVandaag(t)).length);
 const overdueCount = computed(() => alleTaken.value.filter(t => isOverdue(t)).length);
 const inTeDienenCount = computed(() => alleTaken.value.filter(t => t.voortgang?.status === 'klaar').length);
 const conflictCount = computed(() => alleTaken.value.filter(t => ketenStapKleur(t) === 'keten-rood').length);
@@ -292,6 +330,8 @@ function toggleKaart(id) {
 
 function onKaartClick(taak, kolom) {
   selectTaak(taak.id);
+  const ki = kolommen.indexOf(kolom);
+  if (ki >= 0 && focusKolomIdx.value !== ki) focusKolom(ki);
   if (kolom.compact) openDetail(taak);
 }
 
@@ -502,8 +542,8 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
 
 .kanban-grid {
   display: grid;
-  grid-template-columns: 2fr 2fr 1fr 1fr;
   gap: 0;
+  transition: grid-template-columns 0.25s ease;
 }
 
 /* ---- Column headers (sticky) ---- */
@@ -518,6 +558,11 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
   position: sticky;
   top: 0;
   z-index: 10;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.kolom-header:hover {
+  background: var(--clr-bg);
 }
 
 .kolom-header h3 {
@@ -826,13 +871,13 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
 
 @media (max-width: 900px) {
   .kanban-grid {
-    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr !important;
   }
 }
 
 @media (max-width: 600px) {
   .kanban-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr !important;
   }
   .vak-rij-header {
     grid-column: 1 / -1;

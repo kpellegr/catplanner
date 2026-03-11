@@ -17,6 +17,18 @@
       >R</button>
     </div>
 
+    <!-- Vandaag chip -->
+    <button
+      class="fb-chip fb-chip-vandaag"
+      :class="{ on: filters.vandaag }"
+      @click="toggleChip('vandaag')"
+      title="Toon alleen taken gepland voor vandaag"
+    >
+      <Icon icon="mdi:calendar-today" width="13" height="13" />
+      <span class="fb-chip-count">{{ vandaagCount }}</span>
+      <span class="fb-chip-label">vandaag</span>
+    </button>
+
     <!-- Ongepland chip -->
     <button
       class="fb-chip fb-chip-ongepland"
@@ -74,6 +86,7 @@ import { usePlanner } from '../stores/planner.js';
 
 defineProps({
   ongeplandCount: { type: Number, default: 0 },
+  vandaagCount: { type: Number, default: 0 },
   overdueCount: { type: Number, default: 0 },
   inTeDienenCount: { type: Number, default: 0 },
   conflictCount: { type: Number, default: 0 },
@@ -85,6 +98,7 @@ function toggleChip(key) {
   const wasOn = filters[key];
   // Radio: turn all off, then toggle the clicked one
   filters.alleenOngepland = false;
+  filters.vandaag = false;
   filters.overdue = false;
   filters.inTeDienen = false;
   filters.conflict = false;
@@ -173,6 +187,21 @@ function toggleChip(key) {
 .fb-chip-ongepland.on {
   background: #6366f1;
   border-color: #6366f1;
+  color: white;
+}
+
+/* ---- Vandaag = teal ---- */
+.fb-chip-vandaag {
+  border-color: rgba(20, 184, 166, 0.3);
+  color: #0f766e;
+}
+.fb-chip-vandaag:hover {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+}
+.fb-chip-vandaag.on {
+  background: #14b8a6;
+  border-color: #14b8a6;
   color: white;
 }
 

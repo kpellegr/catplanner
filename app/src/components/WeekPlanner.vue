@@ -1,7 +1,7 @@
 <template>
   <div class="weekplan">
     <!-- Toolbar: FilterBar + vak filter + action buttons -->
-    <FilterBar :ongepland-count="ongeplandCount" :overdue-count="overdueCount" :in-te-dienen-count="inTeDienenCount" :conflict-count="conflictCount">
+    <FilterBar :ongepland-count="ongeplandCount" :vandaag-count="vandaagCount" :overdue-count="overdueCount" :in-te-dienen-count="inTeDienenCount" :conflict-count="conflictCount">
       <template #expand>
         <button class="btn-expand" @click="poolRef?.toggleAlles()" :title="poolRef?.allesOpen ? 'Alles dichtklappen' : 'Alles openklappen'">
           <span class="expand-icon" :class="{ open: poolRef?.allesOpen }">&#9656;</span>
@@ -303,6 +303,9 @@ function passeertFilters(taak) {
 
   // Ongepland drill-down
   if (filters.alleenOngepland && taak.geplandOp) return false;
+
+  // Vandaag drill-down
+  if (filters.vandaag && taak.geplandOp !== vandaagDag.value) return false;
 
   // Status filter
   const status = taak.voortgang?.status || 'open';
@@ -636,6 +639,7 @@ function geplandeTaken(dag) {
 const alleOngeplande = computed(() => alleTaken.value);
 
 // Warning counts for FilterBar badges
+const vandaagCount = computed(() => alleTaken.value.filter(t => t.geplandOp === vandaagDag.value).length);
 const overdueCount = computed(() => alleTaken.value.filter(t => isOverdue(t)).length);
 const inTeDienenCount = computed(() => alleTaken.value.filter(t => t.voortgang?.status === 'klaar').length);
 const conflictCount = computed(() => alleTaken.value.filter(t => ketenStapKleur(t) === 'keten-rood').length);
