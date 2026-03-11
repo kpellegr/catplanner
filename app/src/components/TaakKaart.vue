@@ -120,13 +120,13 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
   z-index: 1;
 }
 
-.kanban-kaart.is-overdue { border-left-color: #ef4444 !important; background: #fef2f2; }
+.kanban-kaart.is-overdue { border-left-color: #ef4444 !important; }
 .kanban-kaart.is-overdue .kaart-gepland { color: #ef4444; font-weight: 700; }
 
-/* Type border colors */
-.kanban-kaart.is-rooster-les { border-left-color: #d97706; }
-.kanban-kaart.is-rooster { border-left-color: #eab308; }
-.kanban-kaart:not(.is-rooster):not(.is-rooster-les) { border-left-color: #3b82f6; }
+/* Type border colors: rooster=indigo, huistaak/Z=slate */
+.kanban-kaart.is-rooster-les { border-left-color: #6366f1; }
+.kanban-kaart.is-rooster { border-left-color: #6366f1; }
+.kanban-kaart:not(.is-rooster):not(.is-rooster-les) { border-left-color: #64748b; }
 
 /* ---- Top row ---- */
 .kaart-top {

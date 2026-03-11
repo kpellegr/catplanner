@@ -1,33 +1,11 @@
 <template>
-  <div class="kanban-toolbar">
-    <button class="btn-expand" @click="toggleAlles" :title="allesOpen ? 'Alles dichtklappen' : 'Alles openklappen'">
-      <span class="expand-icon" :class="{ open: allesOpen }">+</span>
-    </button>
-    <div class="segmented-group">
-      <button
-        :class="{ on: !verbergRooster }"
-        @click="verbergRooster = !verbergRooster"
-      >Rooster</button>
-      <button
-        :class="{ on: !verbergHuistaken }"
-        @click="verbergHuistaken = !verbergHuistaken"
-      >Huistaken</button>
-    </div>
-    <div class="segmented-group">
-      <button :class="{ on: kanbanFilter === 'all' }" @click="kanbanFilter = 'all'">Alle</button>
-      <button :class="{ on: kanbanFilter === 'overdue' }" @click="kanbanFilter = 'overdue'">Achterstand</button>
-      <button :class="{ on: kanbanFilter === 'today' }" @click="kanbanFilter = 'today'">Vandaag</button>
-    </div>
-    <div class="kb-legenda">
-      <span class="kb-legenda-item" data-tip="Roostertaak (tijdens de les)"><span class="kb-legenda-swatch rooster-les"></span>R</span>
-      <span class="kb-legenda-item" data-tip="Roostertaak (zelfstandig)"><span class="kb-legenda-swatch rooster"></span>Z</span>
-      <span class="kb-legenda-item" data-tip="Huistaak"><span class="kb-legenda-swatch huistaak"></span>H</span>
-      <span class="kb-legenda-sep"></span>
-      <span class="kb-legenda-item" data-tip="Volgorde OK"><span class="kb-legenda-dot groen"></span></span>
-      <span class="kb-legenda-item" data-tip="Voorganger niet ingepland"><span class="kb-legenda-dot oranje"></span></span>
-      <span class="kb-legenda-item" data-tip="Volgorde-conflict"><span class="kb-legenda-dot rood"></span></span>
-    </div>
-  </div>
+  <FilterBar>
+    <template #expand>
+      <button class="btn-expand" @click="toggleAlles" :title="allesOpen ? 'Alles dichtklappen' : 'Alles openklappen'">
+        <span class="expand-icon" :class="{ open: allesOpen }">+</span>
+      </button>
+    </template>
+  </FilterBar>
 
   <div class="kanban-grid">
     <!-- Sticky column headers -->
@@ -170,8 +148,9 @@ import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { hoofdgroepClass, formatDuur, duurTooltip, flagTooltip, flagTooltips, useVakGroepen, useVolgordeKetens, useDragRelated } from '../composables/useTakenLogic.js';
 import TaakKaart from './TaakKaart.vue';
+import FilterBar from './FilterBar.vue';
 
-const { alleTaken, updateVoortgang, editTaak, isReadOnly, selectedTaakId, selectTaak } = usePlanner();
+const { alleTaken, updateVoortgang, editTaak, isReadOnly, selectedTaakId, selectTaak, filters } = usePlanner();
 
 onMounted(() => {
   if (selectedTaakId.value) {
@@ -215,9 +194,7 @@ function geplandLabel(taak) {
   return dag;
 }
 
-const verbergRooster = ref(false);
-const verbergHuistaken = ref(false);
-const kanbanFilter = ref('all');
+// Local kanban-specific state (filter logic now uses global filters)
 const dragOverCel = ref(null);
 const dragOverStatus = ref(null);
 const draggingTaak = ref(null);
@@ -235,19 +212,35 @@ const kolommen = [
 ];
 
 const gefilterdeTaken = computed(() => {
-  let taken = alleTaken.value;
-  if (verbergRooster.value) {
-    taken = taken.filter((t) => t.tijd?.type !== 'rooster');
-  }
-  if (verbergHuistaken.value) {
-    taken = taken.filter((t) => t.tijd?.type === 'rooster');
-  }
-  if (kanbanFilter.value === 'overdue') {
-    taken = taken.filter(t => isOverdue(t));
-  } else if (kanbanFilter.value === 'today') {
-    taken = taken.filter(t => isVandaag(t));
-  }
-  return taken;
+  return alleTaken.value.filter(taak => {
+    // Type filter
+    const isRooster = taak.tijd?.type === 'rooster';
+    if (isRooster && !filters.rooster) return false;
+    if (!isRooster && !filters.huistaken) return false;
+
+    // Status filter
+    const status = taak.voortgang?.status || 'open';
+    const gepland = !!taak.geplandOp;
+    if (status === 'ingediend' && !filters.ingediend) return false;
+    if (status === 'klaar' && !filters.klaar) return false;
+    if ((status === 'open' || status === 'bezig') && gepland && !filters.gepland) return false;
+    if ((status === 'open' || status === 'bezig') && !gepland && !filters.ongepland) return false;
+
+    // Warning drill-down
+    const anyWarning = filters.overdue || filters.inTeDienen || filters.conflict;
+    if (anyWarning) {
+      let matchesWarning = false;
+      if (filters.overdue && isOverdue(taak)) matchesWarning = true;
+      if (filters.inTeDienen && status === 'klaar') matchesWarning = true;
+      if (filters.conflict) {
+        const kleur = ketenStapKleur(taak);
+        if (kleur === 'keten-rood') matchesWarning = true;
+      }
+      if (!matchesWarning) return false;
+    }
+
+    return true;
+  });
 });
 
 const totaalMinuten = computed(() => {
@@ -463,100 +456,6 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
 </script>
 
 <style scoped>
-.kanban-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-/* Legend */
-.kb-legenda {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--clr-text-muted);
-  margin-left: auto;
-}
-.kb-legenda-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  cursor: default;
-  position: relative;
-}
-.kb-legenda-item[data-tip]:hover::after {
-  content: attr(data-tip);
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  background: var(--clr-text);
-  color: var(--clr-surface);
-  font-size: 0.6rem;
-  font-weight: 500;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  z-index: 100;
-  margin-top: 4px;
-  pointer-events: none;
-}
-.kb-legenda-swatch {
-  width: 3px;
-  height: 12px;
-  border-radius: 1px;
-}
-.kb-legenda-swatch.rooster-les { background: #d97706; }
-.kb-legenda-swatch.rooster { background: #eab308; }
-.kb-legenda-swatch.huistaak { background: #3b82f6; }
-.kb-legenda-sep {
-  width: 1px;
-  height: 10px;
-  background: var(--clr-border);
-}
-.kb-legenda-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-.kb-legenda-dot.groen { background: #059669; }
-.kb-legenda-dot.oranje { background: #d97706; }
-.kb-legenda-dot.rood { background: #dc2626; }
-
-/* Segmented toggle */
-
-.segmented-group {
-  display: flex;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.segmented-group button {
-  background: var(--clr-bg);
-  border: none;
-  border-right: 1px solid var(--clr-border);
-  padding: 0.4rem 0.8rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--clr-text-muted);
-  transition: all 0.15s;
-  font-weight: 500;
-}
-
-.segmented-group button:last-child {
-  border-right: none;
-}
-
-.segmented-group button.on {
-  background: var(--clr-accent);
-  color: white;
-}
-
 /* Expand/collapse +/- button */
 
 .btn-expand {

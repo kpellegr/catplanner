@@ -18,14 +18,6 @@
         </div>
       </div>
 
-      <!-- Filters -->
-      <slot name="filters">
-        <div class="pool-filters">
-          <button :class="{ on: filter !== 'rooster' }" @click="toggleFilter('huistaken')">Huistaken ({{ huistakenCount }})</button>
-          <button :class="{ on: filter !== 'huistaken' }" @click="toggleFilter('rooster')">Rooster ({{ roosterCount }})</button>
-        </div>
-      </slot>
-
       <!-- Extra (e.g. selectedVak chip) -->
       <slot name="header-extra"></slot>
     </template>
@@ -108,16 +100,12 @@ const props = defineProps({
   geplandLabelFn: { type: Function, default: () => '' },
   // Rooster-op-les check function (provided by parent)
   isRoosterLesFn: { type: Function, default: () => false },
-  // Filter state (controlled by parent when using custom filters slot)
-  filter: { type: String, default: null },
-  roosterCount: { type: Number, default: 0 },
-  huistakenCount: { type: Number, default: 0 },
 });
 
 const emit = defineEmits([
   'dragenter', 'dragleave', 'drop',
   'card-dragstart', 'card-dragend', 'card-dblclick', 'card-toggle-klaar',
-  'update:filter', 'resize',
+  'resize',
 ]);
 
 // Use shared vak grouping
@@ -128,9 +116,6 @@ const totalMinuten = computed(() => {
   return props.taken.reduce((sum, t) => (t.tijd?.type === 'minuten' ? sum + t.tijd.minuten : sum), 0);
 });
 
-function toggleFilter(f) {
-  emit('update:filter', props.filter === f ? null : f);
-}
 
 // ---- Resize handle ----
 const currentWidth = ref(props.width);
@@ -204,22 +189,6 @@ defineExpose({ currentWidth, totalMinuten, allesOpen, toggleAlles, openVakken })
 .pool-actions { margin-left: auto; display: flex; gap: 2px; }
 
 /* ---- Filters ---- */
-.pool-filters { display: flex; gap: 2px; padding: 0 0.75rem 0.5rem; }
-.pool-filters button {
-  flex: 1;
-  padding: 0.25rem 0.4rem;
-  border: 1px solid var(--clr-border);
-  border-radius: 6px;
-  background: var(--clr-surface);
-  cursor: pointer;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--clr-text-muted);
-  transition: all 0.15s;
-}
-.pool-filters button.on { background: var(--clr-accent); color: white; border-color: var(--clr-accent); }
-.pool-filters button:hover:not(.on) { border-color: var(--clr-accent); color: var(--clr-accent); }
-
 /* ---- Task list ---- */
 .pool-taken {
   padding: 0 0.5rem 0.5rem;

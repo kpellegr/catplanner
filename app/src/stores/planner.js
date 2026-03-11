@@ -36,6 +36,22 @@ function deselectTaak() {
   selectedTaakId.value = null;
 }
 
+// Global filters (not persisted, survives view switches)
+const filters = reactive({
+  // Type (show tasks matching at least one active type)
+  rooster: true,
+  huistaken: true,
+  // Status (show tasks matching at least one active status)
+  ongepland: true,
+  gepland: true,
+  klaar: true,
+  ingediend: true,
+  // Warnings (off = show all, on = drill-down to only matching)
+  overdue: false,
+  inTeDienen: false,
+  conflict: false,
+});
+
 // ---- Computed ----
 
 const STATUSSEN = ['open', 'bezig', 'klaar', 'ingediend'];
@@ -650,5 +666,6 @@ export function usePlanner() {
     selectedTaakId,
     selectTaak,
     deselectTaak,
+    filters,
   };
 }
