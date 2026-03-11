@@ -40,6 +40,7 @@ function parseMainTable(lines) {
   let inMainTable = false;
   let currentHoofdgroep = null;
   let currentVak = null;
+  let currentProjectTitel = null;
   let currentRichting = null;
   let currentRouteContext = null;
   let taakIndex = 0;
@@ -62,7 +63,9 @@ function parseMainTable(lines) {
       if (currentHoofdgroep === 'WISKUNDE') {
         const label = cleanMarkdown(cells[0] || '').trim();
         if (label && /\d/.test(label)) {
-          currentVak = `Wiskunde ${label}`;
+          const { vak: wVak, projectTitel: wProj } = splitWiskundeLabel(label);
+          currentVak = wVak;
+          currentProjectTitel = wProj;
           currentRouteContext = label;
           currentRichting = null;
         }
@@ -75,14 +78,20 @@ function parseMainTable(lines) {
       if (sectionInfo.type === 'hoofdgroep') {
         currentHoofdgroep = sectionInfo.naam;
         currentVak = sectionInfo.vak || null;
+        currentProjectTitel = sectionInfo.projectTitel || null;
         currentRichting = null;
         currentRouteContext = null;
       } else if (sectionInfo.type === 'vak') {
         currentVak = sectionInfo.naam;
+        currentProjectTitel = sectionInfo.projectTitel || null;
         currentRichting = null;
         currentRouteContext = null;
       } else if (sectionInfo.type === 'route') {
-        if (currentHoofdgroep === 'WISKUNDE') currentVak = `Wiskunde ${sectionInfo.naam}`;
+        if (currentHoofdgroep === 'WISKUNDE') {
+          const { vak: wVak, projectTitel: wProj } = splitWiskundeLabel(sectionInfo.naam);
+          currentVak = wVak;
+          currentProjectTitel = wProj;
+        }
         currentRouteContext = sectionInfo.naam;
         currentRichting = null;
       }
@@ -98,6 +107,7 @@ function parseMainTable(lines) {
       }
       taak.hoofdgroep = currentHoofdgroep;
       taak.vak = currentVak;
+      taak.projectTitel = currentProjectTitel;
       taak.origIndex = taakIndex++;
 
       allTaken.push(taak);
@@ -106,7 +116,7 @@ function parseMainTable(lines) {
         (s) => s.hoofdgroep === currentHoofdgroep && s.vak === currentVak
       );
       if (!section) {
-        section = { hoofdgroep: currentHoofdgroep, vak: currentVak, taken: [] };
+        section = { hoofdgroep: currentHoofdgroep, vak: currentVak, projectTitel: currentProjectTitel, taken: [] };
         sections.push(section);
       }
       section.taken.push(taak);
@@ -196,11 +206,59 @@ function detectSection(cells) {
   }
   if (/^WISKUNDE/i.test(cleaned)) return { type: 'hoofdgroep', naam: 'WISKUNDE' };
   if (/^PROJECT/i.test(cleaned)) {
-    // "PROJECT: KAAS" → hoofdgroep PROJECT with vak "PROJECT: KAAS"
-    return { type: 'hoofdgroep', naam: 'PROJECT', vak: cleaned };
+    // "PROJECT: KAAS" → hoofdgroep PROJECT with vak "PROJECT", projectTitel "KAAS"
+    const { vak, projectTitel } = splitVakNaam(cleaned);
+    return { type: 'hoofdgroep', naam: 'PROJECT', vak, projectTitel };
   }
 
-  return { type: 'vak', naam: cleaned };
+  const { vak, projectTitel } = splitVakNaam(cleaned);
+  return { type: 'vak', naam: vak, projectTitel };
+}
+
+/**
+ * Split a full vak name into short vak name + project title.
+ * "FRANS: Cap sur Saint-Malo !" → { vak: "FRANS", projectTitel: "Cap sur Saint-Malo !" }
+ * "Wiskunde 6" → { vak: "Wiskunde 6", projectTitel: null }
+ */
+function splitVakNaam(full) {
+  // Wiskunde variants: keep everything as vak name (don't split on project titles)
+  // These are handled as route sub-headers, not regular vak sections
+  if (/^wiskunde\s+\d/i.test(full)) return { vak: full, projectTitel: null };
+
+  // Try splitting on ": " or " - " or " – "
+  for (const sep of [': ', ' - ', ' – ']) {
+    const idx = full.indexOf(sep);
+    if (idx > 0) {
+      const left = full.substring(0, idx).trim();
+      const right = full.substring(idx + sep.length).trim();
+      if (left && right) return { vak: left, projectTitel: right };
+      if (left) return { vak: left, projectTitel: null };
+    }
+  }
+
+  // Trailing colon: "FYSICA:" → "FYSICA"
+  if (full.endsWith(':')) return { vak: full.slice(0, -1).trim(), projectTitel: null };
+
+  return { vak: full, projectTitel: null };
+}
+
+/**
+ * Split a Wiskunde sub-label like "8 uur - CryptoLogic" into vak + projectTitel.
+ * "8 uur - CryptoLogic" → { vak: "Wiskunde 8 uur", projectTitel: "CryptoLogic" }
+ * "3-4 uur" → { vak: "Wiskunde 3-4 uur", projectTitel: null }
+ * "6 uur  B- & Z- route" → { vak: "Wiskunde 6 uur", projectTitel: null }
+ */
+function splitWiskundeLabel(label) {
+  // Find "uur" and split after it on " - " / " – " / ": "
+  const uurMatch = label.match(/^(.+?uur)\s*[\-–:]\s*(.+)$/i);
+  if (uurMatch) {
+    const right = uurMatch[2].trim();
+    // Don't treat route info as project title
+    if (!/route/i.test(right)) {
+      return { vak: `Wiskunde ${uurMatch[1].trim()}`, projectTitel: right };
+    }
+  }
+  return { vak: `Wiskunde ${label}`, projectTitel: null };
 }
 
 /**
@@ -242,7 +300,7 @@ export function filterVoorProfiel(parsed, profiel) {
     }
 
     if (secFiltered.length > 0) {
-      filtered.push({ hoofdgroep: section.hoofdgroep, vak: section.vak, taken: secFiltered });
+      filtered.push({ hoofdgroep: section.hoofdgroep, vak: section.vak, projectTitel: section.projectTitel, taken: secFiltered });
     }
     verworpen.push(...secVerworpen);
   }

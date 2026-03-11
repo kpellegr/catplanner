@@ -74,6 +74,7 @@
               <span class="toggle-knob"></span>
             </button>
             <span class="sw-vak-naam">{{ section.vak }}</span>
+            <span v-if="section.projectTitel" class="sw-project-titel">{{ section.projectTitel }}</span>
             <span class="sw-vak-stats">
               {{ sectionActief(section, week) }}/{{ section.taken.length }} taken
               <template v-if="sectionStats(section).minuten">
@@ -640,6 +641,13 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 .sw-vak-naam {
   font-weight: 700;
   font-size: 0.85rem;
+}
+
+.sw-project-titel {
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--clr-text-muted);
 }
 
 .sw-vak-stats {

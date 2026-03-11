@@ -580,7 +580,9 @@ function autoKoppelVakken(config) {
 
 // Auto-derive vakken config from studiewijzer data, merging with existing user config
 function deriveVakkenConfig(weken, existing = {}) {
-  const vakken = { ...existing };
+  const vakken = {};
+
+  // Collect all new (short) vak names from parsed data
   for (const week of weken) {
     for (const section of week.sections) {
       const vak = section.vak;
@@ -603,7 +605,31 @@ function deriveVakkenConfig(weken, existing = {}) {
       }
     }
   }
+
+  // Migrate existing config: match old (possibly long) keys to new short keys
+  for (const [oldKey, oldVal] of Object.entries(existing)) {
+    if (vakken[oldKey]) {
+      // Exact match — merge existing user settings
+      vakken[oldKey] = { ...vakken[oldKey], ...oldVal, aliassen: mergeArrays(vakken[oldKey].aliassen, oldVal.aliassen) };
+    } else {
+      // Try matching old long name to new short name (e.g. "FRANS: Cap sur..." → "FRANS")
+      const match = Object.keys(vakken).find(newKey =>
+        oldKey.toUpperCase().startsWith(newKey.toUpperCase() + ':') ||
+        oldKey.toUpperCase().startsWith(newKey.toUpperCase() + ' -') ||
+        oldKey.toUpperCase().startsWith(newKey.toUpperCase() + ' –')
+      );
+      if (match) {
+        vakken[match] = { ...vakken[match], ...oldVal, aliassen: mergeArrays(vakken[match].aliassen, oldVal.aliassen) };
+      }
+      // Otherwise drop the old key (orphaned)
+    }
+  }
+
   return vakken;
+}
+
+function mergeArrays(a = [], b = []) {
+  return [...new Set([...a, ...b])];
 }
 
 async function verwijderWeek(periode, week) {
