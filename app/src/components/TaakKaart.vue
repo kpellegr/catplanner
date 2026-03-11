@@ -305,37 +305,34 @@ function cycleStatus() {
 
 /* ---- Drag highlights ---- */
 .kanban-kaart.drag-related-ok {
-  outline: 3px solid #10b981;
+  outline: 2px solid #6366f1;
   outline-offset: -1px;
-  background: #ecfdf5 !important;
-  animation: drag-pulse-ok 0.7s ease-in-out infinite;
-  transform: scale(1.02);
+  background: #eef2ff !important;
+  animation: drag-pulse-ok 1.2s ease-in-out infinite;
 }
 .kanban-kaart.drag-related-warn {
-  outline: 3px solid #d97706;
+  outline: 2px solid #d97706;
   outline-offset: -1px;
   background: #fffbeb !important;
-  animation: drag-pulse-warn 0.7s ease-in-out infinite;
-  transform: scale(1.02);
+  animation: drag-pulse-warn 1.2s ease-in-out infinite;
 }
 .kanban-kaart.drag-related-conflict {
-  outline: 3px solid #ef4444;
+  outline: 2px solid #ef4444;
   outline-offset: -1px;
   background: #fef2f2 !important;
-  animation: drag-pulse-conflict 0.7s ease-in-out infinite;
-  transform: scale(1.02);
+  animation: drag-pulse-conflict 1.2s ease-in-out infinite;
 }
 
 @keyframes drag-pulse-ok {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(16, 185, 129, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.25); }
+  50% { box-shadow: 0 0 8px 3px rgba(99, 102, 241, 0.25); }
 }
 @keyframes drag-pulse-warn {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(217, 119, 6, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.25); }
+  50% { box-shadow: 0 0 8px 3px rgba(217, 119, 6, 0.25); }
 }
 @keyframes drag-pulse-conflict {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.25); }
+  50% { box-shadow: 0 0 8px 3px rgba(239, 68, 68, 0.25); }
 }
 </style>

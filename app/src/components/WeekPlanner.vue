@@ -54,7 +54,7 @@
     </div>
 
     <!-- Content: pool + timeline side by side -->
-    <div class="wp-layout" :class="{ 'is-dragging-mode': !!draggingTaak }">
+    <div class="wp-layout" :class="{ 'is-dragging-mode': !!draggingTaak, 'is-dragging-rooster': draggingTaak?.tijd?.type === 'rooster' }">
       <!-- Sidebar: unplanned tasks (headerless — header is above) -->
       <TakenPool
         ref="poolRef"
@@ -449,10 +449,9 @@ function slotStyle(slot) {
 function isRoosterOpLes(taak) {
   if (taak.tijd?.type !== 'rooster' || !taak.geplandOp || taak.geplandBlok == null) return false;
   const slots = roosterSlots(taak.geplandOp);
-  const titels = matchingRoosterTitels(taak);
   for (const slot of slots) {
     if (slot.type !== 'les') continue;
-    if (!titels.has(slot.titel.toLowerCase())) continue;
+    if (!matchesRoosterVak(taak, slot.titel)) continue;
     const bandStart = (slot.uur - 1) * BLOKKEN_PER_UUR;
     const bandEnd = bandStart + BLOKKEN_PER_UUR;
     // Task overlaps with this lesson band
@@ -678,12 +677,16 @@ const roosterVakMap = computed(() => {
   if (!vakken || Object.keys(vakken).length === 0) return DEFAULT_ROOSTER_VAK_MAP;
 
   const map = {};
-  // Build from vakken config: each vak's roosterTitels maps titel → [vak names]
+  // Build from vakken config: each vak's roosterTitels maps titel → [vak keywords]
+  // Extract short vak name (before ":" or " - ") + full name for robust matching
   for (const [naam, vak] of Object.entries(vakken)) {
     if (!vak.actief) continue;
+    const naamLower = naam.toLowerCase();
+    const kort = naamLower.split(/[:–—]\s*/)[0].replace(/\s*$/, '');
     for (const titel of (vak.roosterTitels || [])) {
       if (!map[titel]) map[titel] = [];
-      map[titel].push(naam.toLowerCase());
+      if (!map[titel].includes(naamLower)) map[titel].push(naamLower);
+      if (kort !== naamLower && !map[titel].includes(kort)) map[titel].push(kort);
     }
   }
   // Add wildcards
@@ -729,9 +732,9 @@ function matchesRoosterVak(taak, roosterTitel) {
 
   // Check configured keywords for this rooster title
   const keywords = rvm[titel];
-  if (keywords) {
+  if (keywords && vak) {
     for (const kw of keywords) {
-      if (vak.includes(kw)) return true;
+      if (vak.includes(kw) || kw.includes(vak)) return true;
     }
   }
 
@@ -753,9 +756,9 @@ function matchingRoosterTitels(taak) {
   const rvm = roosterVakMap.value;
   for (const [titel, keywords] of Object.entries(rvm)) {
     if (keywords === null) { result.add(titel); continue; }
-    if (keywords) {
+    if (keywords && vak) {
       for (const kw of keywords) {
-        if (vak.includes(kw)) { result.add(titel); break; }
+        if (vak.includes(kw) || kw.includes(vak)) { result.add(titel); break; }
       }
     }
   }
@@ -845,8 +848,9 @@ function isBandSelected(slot) {
 // Band highlight during drag: highlight bands that match the dragged task
 function isBandDragMatch(slot) {
   if (slot.type !== 'les' || !draggingTaak.value) return false;
-  const titels = matchingRoosterTitels(draggingTaak.value);
-  return titels.has(slot.titel.toLowerCase());
+  // Only highlight lesson bands for roostertaken, not for huistaken
+  if (draggingTaak.value.tijd?.type !== 'rooster') return false;
+  return matchesRoosterVak(draggingTaak.value, slot.titel);
 }
 
 // Chain conflict status if the dragged task were placed at this band's position
@@ -1456,7 +1460,7 @@ function isOverdue(taak) {
 .wp-drop-indicator {
   position: absolute;
   left: 2px; right: 2px;
-  border: 2px dashed var(--clr-accent);
+  border: 3px dashed var(--clr-accent);
   border-radius: 4px;
   z-index: 5;
   pointer-events: none;
@@ -1615,39 +1619,39 @@ function isOverdue(taak) {
 
 /* ---- Drag highlights (timeline tasks) ---- */
 .wp-tl-taak.drag-related-ok {
-  outline: 3px solid #10b981;
+  outline: 2px solid #6366f1;
   outline-offset: -1px;
-  background: #ecfdf5 !important;
-  animation: drag-pulse-ok 0.7s ease-in-out infinite;
+  background: #eef2ff !important;
+  animation: drag-pulse-ok 1.2s ease-in-out infinite;
 }
 
 .wp-tl-taak.drag-related-warn {
-  outline: 3px solid #d97706;
+  outline: 2px solid #d97706;
   outline-offset: -1px;
   background: #fffbeb !important;
-  animation: drag-pulse-warn 0.7s ease-in-out infinite;
+  animation: drag-pulse-warn 1.2s ease-in-out infinite;
 }
 
 .wp-tl-taak.drag-related-conflict {
-  outline: 3px solid #ef4444;
+  outline: 2px solid #ef4444;
   outline-offset: -1px;
   background: #fef2f2 !important;
-  animation: drag-pulse-conflict 0.7s ease-in-out infinite;
+  animation: drag-pulse-conflict 1.2s ease-in-out infinite;
 }
 
 @keyframes drag-pulse-ok {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(16, 185, 129, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.25); }
+  50% { box-shadow: 0 0 8px 3px rgba(99, 102, 241, 0.25); }
 }
 
 @keyframes drag-pulse-warn {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(217, 119, 6, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.25); }
+  50% { box-shadow: 0 0 8px 3px rgba(217, 119, 6, 0.25); }
 }
 
 @keyframes drag-pulse-conflict {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-  50% { box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.4); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.25); }
+  50% { box-shadow: 0 0 8px 3px rgba(239, 68, 68, 0.25); }
 }
 
 /* ---- Dependency chain (timeline-specific sizes) ---- */
@@ -1760,11 +1764,11 @@ function isOverdue(taak) {
 .wp-layout.is-dragging-mode .wp-tl-taak.drag-related-conflict {
   opacity: 1;
 }
-.wp-layout.is-dragging-mode .wp-rooster-band {
+.wp-layout.is-dragging-rooster .wp-rooster-band {
   opacity: 0.3;
   transition: opacity 0.15s;
 }
-.wp-layout.is-dragging-mode .wp-rooster-band.wp-band-drag-match {
+.wp-layout.is-dragging-rooster .wp-rooster-band.wp-band-drag-match {
   opacity: 1;
 }
 

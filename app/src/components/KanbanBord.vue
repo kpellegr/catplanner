@@ -366,11 +366,9 @@ async function saveEdit() {
 function dragStart(e, taak) {
   draggingTaak.value = taak;
   e.dataTransfer.effectAllowed = 'move';
-  e.target.classList.add('dragging');
 }
 
-function dragEnd(e) {
-  e.target.classList.remove('dragging');
+function dragEnd() {
   draggingTaak.value = null;
   dragOverCel.value = null;
   dragOverStatus.value = null;
@@ -404,6 +402,8 @@ function drop(e, status) {
   dragOverCel.value = null;
   if (!draggingTaak.value) return;
   const taak = draggingTaak.value;
+  draggingTaak.value = null;
+  dragOverStatus.value = null;
   if (taak.voortgang.status === status) return;
 
   updateVoortgang(taak.id, { status });
