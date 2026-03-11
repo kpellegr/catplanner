@@ -18,6 +18,9 @@
     >
       <h3>{{ kolom.label }}</h3>
       <span class="kolom-count">{{ kolomTaken(kolom.status).length }}</span>
+      <button v-if="kolom.status === 'open' && !isReadOnly" class="kolom-add-btn" @click.stop="openAdd" title="Eigen taak toevoegen">
+        <Icon icon="mdi:plus" width="14" height="14" />
+      </button>
       <span class="kolom-minuten">{{ kolomMinuten(kolom.status) }}'</span>
     </div>
 
@@ -87,12 +90,6 @@
         </div>
       </template>
     </template>
-
-    <!-- Add task button -->
-    <button v-if="!isReadOnly" class="add-taak-rij" @click="openAdd">
-      <Icon icon="mdi:plus" width="16" height="16" />
-      <span>Eigen taak toevoegen</span>
-    </button>
 
   </div>
 
@@ -940,25 +937,23 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
   border-color: var(--clr-border);
 }
 
-/* ---- Add task button ---- */
-.add-taak-rij {
-  grid-column: 1 / -1;
-  display: flex;
+/* ---- Add task button in column header ---- */
+.kolom-add-btn {
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 1px solid var(--clr-border);
+  border-radius: 4px;
+  background: var(--clr-surface);
+  cursor: pointer;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  padding: 0.6rem;
-  background: var(--clr-surface);
-  border: 1px dashed var(--clr-border);
-  border-radius: var(--radius);
-  margin: 0.5rem 0.4rem;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
+  padding: 0;
   color: var(--clr-text-muted);
   transition: all 0.15s;
+  flex-shrink: 0;
 }
-.add-taak-rij:hover {
+.kolom-add-btn:hover {
   border-color: var(--clr-accent);
   color: var(--clr-accent);
   background: var(--clr-accent-light);
