@@ -645,10 +645,8 @@ const huistakenCount = computed(() => alleOngeplande.value.filter(t => t.tijd?.t
 
 // Map rooster slot titles to task vak/hoofdgroep keywords
 // Equivalenten:
-//   Taal → Nederlands, Frans, Engels
-//   Science@Lab → Biologie, Fysica, Chemie
-//   Lab@Work → alle vakken (wildcard)
-const ROOSTER_VAK_MAP = {
+// Hardcoded fallback maps (used when no configuratie is set)
+const DEFAULT_ROOSTER_VAK_MAP = {
   'taal': ['nederlands', 'frans', 'engels', 'duits', 'taal'],
   'wiskunde': ['wiskunde 6', 'wiskunde 8', 'wiskunde'],
   'wiskunde 6': ['wiskunde 6', 'wiskunde'],
@@ -660,67 +658,108 @@ const ROOSTER_VAK_MAP = {
   'cb': ['burgerschap', 'cultuurbeschouwing', 'historisch'],
   'rb': ['ruimtelijk', 'aardwetenschap'],
   'science@lab': ['biologie', 'fysica', 'chemie', 'science', 'stem'],
-  'lab@work': null,  // null = wildcard, matches all vakken
+  'lab@work': null,
   'stem@lab': ['stem'],
 };
-
-// Map task code prefixes to rooster slot titles
-const CODE_ROOSTER_MAP = {
+const DEFAULT_CODE_ROOSTER_MAP = {
   'hb': ['cultuur', 'cb'],
   'cb': ['cultuur', 'cb'],
   'aa': ['rb'],
 };
 
+// Dynamic rooster-vak map: built from configuratie if available, else fallback
+const roosterVakMap = computed(() => {
+  const config = state.configuratie;
+  const vakken = config?.vakken;
+  const wildcards = config?.wildcardTitels || [];
+  if (!vakken || Object.keys(vakken).length === 0) return DEFAULT_ROOSTER_VAK_MAP;
+
+  const map = {};
+  // Build from vakken config: each vak's roosterTitels maps titel → [vak names]
+  for (const [naam, vak] of Object.entries(vakken)) {
+    if (!vak.actief) continue;
+    for (const titel of (vak.roosterTitels || [])) {
+      if (!map[titel]) map[titel] = [];
+      map[titel].push(naam.toLowerCase());
+    }
+  }
+  // Add wildcards
+  for (const wc of wildcards) {
+    map[wc] = null; // null = matches all
+  }
+  // If map is empty (no koppelingen configured yet), fall back to defaults
+  if (Object.keys(map).length === 0) return DEFAULT_ROOSTER_VAK_MAP;
+  return map;
+});
+
+const codeRoosterMap = computed(() => {
+  const config = state.configuratie;
+  const vakken = config?.vakken;
+  if (!vakken || Object.keys(vakken).length === 0) return DEFAULT_CODE_ROOSTER_MAP;
+
+  const map = {};
+  for (const [naam, vak] of Object.entries(vakken)) {
+    if (!vak.actief) continue;
+    for (const alias of (vak.aliassen || [])) {
+      const lower = alias.toLowerCase();
+      if (!map[lower]) map[lower] = [];
+      for (const titel of (vak.roosterTitels || [])) {
+        if (!map[lower].includes(titel)) map[lower].push(titel);
+      }
+    }
+  }
+  if (Object.keys(map).length === 0) return DEFAULT_CODE_ROOSTER_MAP;
+  return map;
+});
+
+// Matching uses only configured koppelingen (from configuratie.vakken.roosterTitels)
+// All fuzzy/heuristic matching happens at import time via autoKoppelVakken
 function matchesRoosterVak(taak, roosterTitel) {
   const titel = roosterTitel.toLowerCase();
   const vak = (taak.vak || '').toLowerCase();
-  const hg = (taak.hoofdgroep || '').toLowerCase();
   const code = (taak.code || '').toLowerCase().replace(/[\d\s]+$/, '');
 
-  // Lab@Work = wildcard: matches any vak
-  if (ROOSTER_VAK_MAP[titel] === null) return true;
+  const rvm = roosterVakMap.value;
 
-  if (vak.includes(titel) || titel.includes(vak)) return true;
-  if (hg.includes(titel) || titel.includes(hg)) return true;
+  // Wildcard: matches any vak
+  if (rvm[titel] === null) return true;
 
-  const keywords = ROOSTER_VAK_MAP[titel];
+  // Check configured keywords for this rooster title
+  const keywords = rvm[titel];
   if (keywords) {
     for (const kw of keywords) {
-      if (vak.includes(kw) || hg.includes(kw)) return true;
+      if (vak.includes(kw)) return true;
     }
   }
 
-  // Match task code prefix to rooster slot (HB→cultuur, AA→rb)
-  if (code && CODE_ROOSTER_MAP[code]) {
-    if (CODE_ROOSTER_MAP[code].includes(titel)) return true;
+  // Code-based matching (e.g. "BIO" → "biologie")
+  const crm = codeRoosterMap.value;
+  if (code && crm[code]) {
+    if (crm[code].includes(titel)) return true;
   }
 
   return false;
 }
 
 // Reverse: given a task, which rooster titles match it?
-// Used to highlight lesson bands when dragging a task.
 function matchingRoosterTitels(taak) {
   const result = new Set();
   const vak = (taak.vak || '').toLowerCase();
-  const hg = (taak.hoofdgroep || '').toLowerCase();
   const code = (taak.code || '').toLowerCase().replace(/[\d\s]+$/, '');
 
-  for (const [titel, keywords] of Object.entries(ROOSTER_VAK_MAP)) {
-    // Wildcard (Lab@Work)
+  const rvm = roosterVakMap.value;
+  for (const [titel, keywords] of Object.entries(rvm)) {
     if (keywords === null) { result.add(titel); continue; }
-    // Direct match
-    if (vak.includes(titel) || titel.includes(vak)) { result.add(titel); continue; }
-    if (hg.includes(titel) || titel.includes(hg)) { result.add(titel); continue; }
-    // Keyword match
-    for (const kw of keywords) {
-      if (vak.includes(kw) || hg.includes(kw)) { result.add(titel); break; }
+    if (keywords) {
+      for (const kw of keywords) {
+        if (vak.includes(kw)) { result.add(titel); break; }
+      }
     }
   }
 
-  // Code-based match (HB→cultuur/cb, AA→rb)
-  if (code && CODE_ROOSTER_MAP[code]) {
-    for (const titel of CODE_ROOSTER_MAP[code]) {
+  const crm = codeRoosterMap.value;
+  if (code && crm[code]) {
+    for (const titel of crm[code]) {
       result.add(titel);
     }
   }
@@ -783,12 +822,13 @@ function isBandSelected(slot) {
   // Direct match
   if (sel === titel) return true;
   // Check if both are equivalent (e.g. selectedVak='Taal' highlights 'Nederlands' band and vice versa)
-  const selKeywords = ROOSTER_VAK_MAP[sel];
+  const rvm = roosterVakMap.value;
+  const selKeywords = rvm[sel];
   if (selKeywords && selKeywords.includes(titel)) return true;
-  if (selKeywords === null) return true; // Lab@Work selected → all bands
-  const titelKeywords = ROOSTER_VAK_MAP[titel];
+  if (selKeywords === null) return true;
+  const titelKeywords = rvm[titel];
   if (titelKeywords && titelKeywords.includes(sel)) return true;
-  if (titelKeywords === null) return true; // Lab@Work band always matches
+  if (titelKeywords === null) return true;
   return false;
 }
 

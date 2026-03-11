@@ -1,5 +1,5 @@
 <template>
-  <div id="planner" :class="{ 'print-mode': view === 'print' }">
+  <div id="planner">
     <div v-if="!state.loaded" class="loading">
       <p>Planning laden...</p>
     </div>
@@ -47,8 +47,8 @@
         <nav>
           <!-- View switcher -->
           <div class="view-switcher">
-            <button v-if="state.weken.length" :class="{ active: view === 'kanban' }" @click="setView('kanban')" title="Kanban (K)">
-              <Icon icon="mdi:view-week" width="18" height="18" />
+            <button v-if="state.weken.length" :class="{ active: view === 'studiewijzer' }" @click="setView('studiewijzer')" title="Studiewijzer (S)">
+              <Icon icon="mdi:book-open-page-variant-outline" width="18" height="18" />
             </button>
             <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'week' }" @click="setView('week')" title="Week (W)">
               <Icon icon="mdi:calendar-multiselect-outline" width="18" height="18" />
@@ -56,11 +56,11 @@
             <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'dag' }" @click="setView('dag')" title="Dag (D)">
               <Icon icon="mdi:view-day-outline" width="18" height="18" />
             </button>
+            <button v-if="state.weken.length" :class="{ active: view === 'kanban' }" @click="setView('kanban')" title="Kanban (K)">
+              <Icon icon="mdi:view-week" width="18" height="18" />
+            </button>
             <button :class="{ active: view === 'rooster' }" @click="setView('rooster')" title="Weekrooster">
               <Icon icon="mdi:grid" width="18" height="18" />
-            </button>
-            <button v-if="state.weken.length" :class="{ active: view === 'print' }" @click="setView('print')" title="Afdrukken (P)">
-              <Icon icon="mdi:printer-outline" width="18" height="18" />
             </button>
           </div>
 
@@ -84,15 +84,20 @@
               <div class="profile-info">
                 <span v-if="userName" class="profile-name">{{ userName }}</span>
                 <span class="profile-email">{{ userEmail }}</span>
+                <span v-if="profielLabel" class="profile-profiel">{{ profielLabel }}</span>
               </div>
-              <button class="dropdown-btn" @click="onLogout">Uitloggen</button>
+              <button v-if="!isReadOnly" class="dropdown-btn" @click="showProfile = false; setView('config')">
+                <Icon icon="mdi:cog-outline" width="14" height="14" />
+                Instellingen
+              </button>
+              <button class="dropdown-btn dropdown-logout" @click="onLogout">Uitloggen</button>
             </div>
           </div>
         </nav>
       </header>
 
       <main>
-        <FileUpload v-if="view === 'kanban' && !isReadOnly" ref="fileUploadRef" />
+        <FileUpload v-if="!isReadOnly" ref="fileUploadRef" @imported="setView('studiewijzer')" />
 
         <KanbanBord v-if="state.weken.length && view === 'kanban'" />
 
@@ -100,13 +105,10 @@
 
         <WeekRoosterEditor v-if="view === 'rooster'" />
 
-        <template v-if="state.weken.length && view === 'print'">
-          <div class="print-actions no-print">
-            <button class="btn-print" @click="print">Afdrukken</button>
-            <button @click="view = 'kanban'">Terug naar kanban</button>
-          </div>
-          <PrintRapport />
-        </template>
+        <StudiewijzerView v-if="view === 'studiewijzer'" />
+
+        <ConfiguratieView v-if="view === 'config'" />
+
 
         <div v-if="!state.weken.length" class="empty-state">
           <template v-if="isReadOnly">
@@ -136,11 +138,12 @@ import { useAuth } from '../stores/auth.js';
 import * as sync from '../stores/sync.js';
 import FileUpload from './FileUpload.vue';
 import KanbanBord from './KanbanBord.vue';
-import PrintRapport from './PrintRapport.vue';
 import DeelModal from './DeelModal.vue';
 import NotificatieBel from './NotificatieBel.vue';
 import WeekRoosterEditor from './WeekRoosterEditor.vue';
 import WeekPlanner from './WeekPlanner.vue';
+import ConfiguratieView from './ConfiguratieView.vue';
+import StudiewijzerView from './StudiewijzerView.vue';
 
 const props = defineProps({
   plannerId: { type: String, default: null },
@@ -221,10 +224,6 @@ function onDrop(e) {
   }
 }
 
-function print() {
-  window.print();
-}
-
 async function onReset() {
   if (confirm('Alle data wissen? Dit kan niet ongedaan gemaakt worden.')) {
     await resetAlles();
@@ -242,7 +241,8 @@ function setView(v) {
   else if (v === 'week') { view.value = 'weekplan'; wpViewMode.value = 'week'; }
   else if (v === 'dag') { view.value = 'weekplan'; wpViewMode.value = 'dag'; }
   else if (v === 'rooster') { view.value = 'rooster'; }
-  else if (v === 'print') { view.value = 'print'; }
+  else if (v === 'studiewijzer') { view.value = 'studiewijzer'; }
+  else if (v === 'config') { view.value = 'config'; }
 }
 
 function onKeydown(e) {
@@ -252,7 +252,8 @@ function onKeydown(e) {
   if (e.key === 'k' || e.key === 'K') setView('kanban');
   else if (e.key === 'w' || e.key === 'W') setView('week');
   else if (e.key === 'd' || e.key === 'D') setView('dag');
-  else if (e.key === 'p' || e.key === 'P') setView('print');
+  else if (e.key === 's' || e.key === 'S') setView('studiewijzer');
+  else if (e.key === 'p' || e.key === 'P') window.print();
 }
 
 function goHome() {
@@ -537,7 +538,17 @@ nav {
   word-break: break-all;
 }
 
+.profile-profiel {
+  font-size: 0.7rem;
+  color: var(--clr-accent);
+  font-weight: 500;
+}
+
 .dropdown-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   padding: 0.4rem 0.75rem;
   border: 1px solid var(--clr-border);
   border-radius: 0.4rem;
@@ -547,9 +558,16 @@ nav {
   color: var(--clr-text-muted);
   text-align: center;
   transition: all 0.15s;
+  width: 100%;
 }
 
 .dropdown-btn:hover {
+  border-color: var(--clr-accent);
+  color: var(--clr-accent);
+  background: var(--clr-accent-light);
+}
+
+.dropdown-logout:hover {
   border-color: #ef4444;
   color: #ef4444;
   background: #fef2f2;
