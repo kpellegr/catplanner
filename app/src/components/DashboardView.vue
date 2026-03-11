@@ -2,13 +2,6 @@
   <div class="db">
     <div class="db-wrap">
 
-      <!-- Header -->
-      <div class="db-header">
-        <div class="db-date">{{ vandaagVol }}</div>
-        <h2 class="db-title">Dagelijkse update voor {{ studentName }}</h2>
-        <div class="db-sub">P3 Week {{ weekNr }}</div>
-      </div>
-
       <!-- Week grid -->
       <div class="db-card">
         <WeekGrid compact />
@@ -19,17 +12,26 @@
         <div class="db-status-row">
           <span class="db-badge db-badge-klaar">{{ klaarCount }}</span>
           <span class="db-status-label">taken afgewerkt</span>
-          <span class="db-status-min">{{ klaarMin }}' van {{ totaalMin }}'</span>
+          <span class="db-status-min db-min-klaar">{{ klaarMin }}'</span>
+        </div>
+        <div class="db-status-row">
+          <span class="db-badge db-badge-blauw">{{ geplandCount }}</span>
+          <span class="db-status-label">taken nog gepland</span>
+          <span class="db-status-min db-min-blauw">{{ geplandMin }}'</span>
         </div>
         <div v-if="overdueCount" class="db-status-row">
           <span class="db-badge db-badge-rood">{{ overdueCount }}</span>
           <span class="db-status-label">taken achterstallig</span>
-          <span class="db-status-min">{{ overdueMin }}'</span>
+          <span class="db-status-min db-min-rood">{{ overdueMin }}'</span>
         </div>
         <div v-if="ongeplandCount" class="db-status-row">
           <span class="db-badge db-badge-oranje">{{ ongeplandCount }}</span>
           <span class="db-status-label">taken niet ingepland</span>
-          <span class="db-status-min">{{ ongeplandMin }}'</span>
+          <span class="db-status-min db-min-oranje">{{ ongeplandMin }}'</span>
+        </div>
+        <div class="db-status-row db-status-totaal">
+          <span class="db-badge db-badge-grijs">{{ totaalCount }}</span>
+          <span class="db-status-min">{{ totaalMin }}'</span>
         </div>
       </div>
 
@@ -43,13 +45,14 @@
         <template v-if="open.gisteren">
           <div v-if="!gisterenTaken.length" class="db-empty">Geen taken gepland</div>
           <div v-for="taak in gisterenTaken" :key="taak.id" class="db-taak" :class="taakClass(taak, true)">
-            <span class="db-code">{{ taak.code || '?' }}</span>
+            <span class="db-code">{{ taak.code || shortVak(taak) }}</span>
             <span class="db-omschrijving">{{ taak.omschrijving }}</span>
-            <span class="db-tijd">
-              <template v-if="taak.tijd?.type === 'minuten'">{{ taak.tijd.minuten }}'</template>
-              <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
+            <span class="db-right">
+              <span class="db-duur-badge">
+                <template v-if="taak.tijd?.type === 'minuten'">{{ taak.tijd.minuten }}'</template>
+                <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
+              </span>
             </span>
-            <span v-if="!isKlaar(taak)" class="db-label db-label-rood">niet afgewerkt</span>
           </div>
         </template>
       </div>
@@ -64,11 +67,13 @@
         <template v-if="open.vandaag">
           <div v-if="!vandaagTaken.length" class="db-empty">Geen taken gepland</div>
           <div v-for="taak in vandaagTaken" :key="taak.id" class="db-taak" :class="taakClass(taak, false)">
-            <span class="db-code">{{ taak.code || '?' }}</span>
+            <span class="db-code">{{ taak.code || shortVak(taak) }}</span>
             <span class="db-omschrijving">{{ taak.omschrijving }}</span>
-            <span class="db-tijd">
-              <template v-if="taak.tijd?.type === 'minuten'">{{ taak.tijd.minuten }}'</template>
-              <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
+            <span class="db-right">
+              <span class="db-duur-badge">
+                <template v-if="taak.tijd?.type === 'minuten'">{{ taak.tijd.minuten }}'</template>
+                <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
+              </span>
             </span>
           </div>
         </template>
@@ -83,24 +88,18 @@
         </h3>
         <template v-if="open.rest">
           <div v-for="taak in restTaken" :key="taak.id" class="db-taak" :class="taakClass(taak, false)">
-            <span class="db-dag">{{ taak.geplandOp }}</span>
-            <span class="db-code">{{ taak.code || '?' }}</span>
+            <span class="db-code">{{ taak.code || shortVak(taak) }}</span>
             <span class="db-omschrijving">{{ taak.omschrijving }}</span>
-            <span class="db-tijd">
-              <template v-if="taak.tijd?.type === 'minuten'">{{ taak.tijd.minuten }}'</template>
-              <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
+            <span class="db-right">
+              <span class="db-duur-badge">
+                <template v-if="taak.tijd?.type === 'minuten'">{{ taak.tijd.minuten }}'</template>
+                <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
+              </span>
             </span>
           </div>
         </template>
       </div>
 
-      <!-- CTA -->
-      <a :href="plannerUrl" class="db-cta">Bekijk planning</a>
-
-      <!-- Footer -->
-      <div class="db-footer">
-        Gekoppeld aan {{ studentName }}'s planning op Catplanner
-      </div>
     </div>
   </div>
 </template>
@@ -112,11 +111,10 @@ import WeekGrid from './WeekGrid.vue';
 
 const { alleTaken, state } = usePlanner();
 
-const open = reactive({ gisteren: false, vandaag: false, rest: false });
+const open = reactive({ gisteren: true, vandaag: false, rest: false });
 
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const dagenVol = ['maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag', 'zondag'];
-const maanden = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 
 const now = new Date();
 const jsDay = now.getDay();
@@ -127,14 +125,6 @@ const vandaagDagVol = dagenVol[vandaagIdx] || 'maandag';
 const gisterenIdx = vandaagIdx > 0 ? vandaagIdx - 1 : 6;
 const gisterenDag = dagen[gisterenIdx];
 const gisterenDagVol = dagenVol[gisterenIdx];
-const vandaagVol = `${dagenVol[vandaagIdx]} ${now.getDate()} ${maanden[now.getMonth()]} ${now.getFullYear()}`;
-
-const studentName = computed(() => state.studentProfile?.naam || 'Catplanner');
-const weekNr = computed(() => state.weken?.[0]?.metadata?.week || '?');
-const plannerUrl = computed(() => {
-  const base = window.location.origin;
-  return state.plannerId ? `${base}/planner/${state.plannerId}` : base;
-});
 
 function isKlaar(taak) {
   return taak.voortgang.status === 'klaar' || taak.voortgang.status === 'ingediend';
@@ -148,7 +138,6 @@ function isDagVerleden(dag) {
   return dagen.indexOf(dag) < vandaagIdx;
 }
 
-// Lopend totaal: alle klare taken deze week
 const klaarCount = computed(() =>
   alleTaken.value.filter(isKlaar).length
 );
@@ -158,8 +147,14 @@ const klaarMin = computed(() =>
 const totaalMin = computed(() =>
   alleTaken.value.reduce((s, t) => s + taakMin(t), 0)
 );
+const totaalCount = computed(() => alleTaken.value.length);
+const geplandCount = computed(() =>
+  alleTaken.value.filter(t => !isKlaar(t) && t.geplandOp).length
+);
+const geplandMin = computed(() =>
+  alleTaken.value.filter(t => !isKlaar(t) && t.geplandOp).reduce((s, t) => s + taakMin(t), 0)
+);
 
-// Achterstallig
 const overdueTaken = computed(() =>
   alleTaken.value.filter(t => t.geplandOp && isDagVerleden(t.geplandOp) && !isKlaar(t))
 );
@@ -168,7 +163,6 @@ const overdueMin = computed(() =>
   overdueTaken.value.reduce((s, t) => s + taakMin(t), 0)
 );
 
-// Ongepland
 const ongeplandeTaken = computed(() =>
   alleTaken.value.filter(t => !t.geplandOp && !isKlaar(t))
 );
@@ -177,7 +171,6 @@ const ongeplandMin = computed(() =>
   ongeplandeTaken.value.reduce((s, t) => s + taakMin(t), 0)
 );
 
-// Gisteren
 const gisterenTaken = computed(() =>
   alleTaken.value.filter(t => t.geplandOp === gisterenDag)
 );
@@ -185,7 +178,6 @@ const gisterenKlaarMin = computed(() =>
   gisterenTaken.value.filter(isKlaar).reduce((s, t) => s + taakMin(t), 0)
 );
 
-// Vandaag
 const vandaagTaken = computed(() =>
   alleTaken.value.filter(t => t.geplandOp === vandaagDag)
 );
@@ -193,7 +185,6 @@ const vandaagOpenMin = computed(() =>
   vandaagTaken.value.filter(t => !isKlaar(t)).reduce((s, t) => s + taakMin(t), 0)
 );
 
-// Rest van de week (na vandaag)
 const restTaken = computed(() =>
   alleTaken.value.filter(t => {
     if (!t.geplandOp) return false;
@@ -203,6 +194,12 @@ const restTaken = computed(() =>
 const restOpenMin = computed(() =>
   restTaken.value.filter(t => !isKlaar(t)).reduce((s, t) => s + taakMin(t), 0)
 );
+
+function shortVak(taak) {
+  const v = taak.vak || taak.sectie || '';
+  if (!v) return '?';
+  return v.split(/[\s/]+/)[0].substring(0, 4).toUpperCase();
+}
 
 function taakClass(taak, isVerleden) {
   if (isKlaar(taak)) return 'db-taak-klaar';
@@ -214,11 +211,11 @@ function taakClass(taak, isVerleden) {
 
 <style scoped>
 .db {
-  padding: 16px 0;
+  padding: 8px 0;
 }
 
 .db-wrap {
-  max-width: 520px;
+  max-width: 700px;
   margin: 0 auto;
   background: var(--clr-surface);
   border-radius: 10px;
@@ -226,36 +223,15 @@ function taakClass(taak, isVerleden) {
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
-/* Header */
-.db-header {
-  padding: 20px 24px;
-  border-bottom: 2px solid var(--clr-border);
-}
-.db-date {
-  font-size: 0.75rem;
-  color: var(--clr-text-muted);
-}
-.db-title {
-  margin: 4px 0 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--clr-text);
-}
-.db-sub {
-  margin-top: 2px;
-  font-size: 0.8rem;
-  color: var(--clr-text-muted);
-}
-
 /* Card sections */
 .db-card {
-  padding: 16px 24px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--clr-border);
 }
 
 /* Status samenvatting */
 .db-status {
-  padding: 10px 24px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--clr-border);
   display: flex;
   flex-direction: column;
@@ -265,7 +241,7 @@ function taakClass(taak, isVerleden) {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 0;
+  padding: 5px 0;
   border-bottom: 1px solid var(--clr-bg);
 }
 .db-status-row:last-child {
@@ -297,8 +273,27 @@ function taakClass(taak, isVerleden) {
 }
 .db-status-min {
   font-size: 0.7rem;
+  font-weight: 600;
   color: var(--clr-text-muted);
   margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.db-min-klaar { color: #059669; }
+.db-min-blauw { color: var(--clr-accent); }
+.db-min-rood { color: #ef4444; }
+.db-min-oranje { color: #d97706; }
+.db-badge-blauw {
+  color: var(--clr-accent);
+  background: var(--clr-accent-light);
+}
+.db-badge-grijs {
+  color: var(--clr-text-muted);
+  background: var(--clr-bg);
+}
+.db-status-totaal {
+  border-top: 1px solid var(--clr-border);
+  margin-top: 2px;
+  padding-top: 6px;
 }
 
 /* Section heading */
@@ -339,7 +334,7 @@ function taakClass(taak, isVerleden) {
   margin-top: 10px;
 }
 
-/* Taak rij (email-style: border-left colored rows) */
+/* Taak rij */
 .db-taak {
   display: flex;
   align-items: center;
@@ -369,17 +364,9 @@ function taakClass(taak, isVerleden) {
   border-left-color: #7eb8d8;
 }
 
-.db-dag {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--clr-text-muted);
-  text-transform: uppercase;
-  flex-shrink: 0;
-  width: 16px;
-}
-
 .db-code {
   font-weight: 700;
+  font-size: 0.75rem;
   color: var(--clr-accent);
   flex-shrink: 0;
 }
@@ -391,43 +378,21 @@ function taakClass(taak, isVerleden) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.db-tijd {
-  font-size: 0.7rem;
-  color: var(--clr-text-muted);
-  font-weight: 600;
+.db-right {
+  margin-left: auto;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
-.db-label {
+.db-duur-badge {
   font-size: 0.65rem;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.db-label-rood {
-  color: #ef4444;
-}
-
-/* CTA */
-.db-cta {
-  display: block;
-  text-align: center;
-  background: #7c6cad;
-  color: white;
-  padding: 12px;
-  margin: 16px 24px;
-  border-radius: 10px;
-  text-decoration: none;
   font-weight: 700;
-  font-size: 0.85rem;
-}
-.db-cta:hover {
-  opacity: 0.9;
+  color: var(--clr-text-muted);
+  background: var(--clr-bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Footer */
-.db-footer {
-  text-align: center;
-  font-size: 0.62rem;
-  color: var(--clr-text-muted);
-  padding: 0 24px 16px;
-}
 </style>

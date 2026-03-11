@@ -1,19 +1,16 @@
 <template>
   <div id="planner">
+    <div v-if="isDev" class="dev-bar"></div>
     <div v-if="!state.loaded" class="loading">
       <p>Planning laden...</p>
     </div>
 
     <template v-else>
       <header class="no-print">
-        <!-- Left: home + title blocks + upload -->
+        <!-- Left: title blocks + upload -->
         <div class="header-left">
-          <button class="btn-home" data-tooltip="Overzicht" data-tooltip-pos="bottom" @click="goHome">
-            <Icon icon="mdi:home-outline" width="20" height="20" />
-          </button>
-
           <!-- Block 1: naam + profiel -->
-          <div class="header-block">
+          <div class="header-block header-block-first">
             <div class="titel-row">
               <template v-if="otherPlanners.length > 0">
                 <select class="planner-select" :value="state.plannerId" @change="switchPlanner($event.target.value)">
@@ -28,16 +25,13 @@
           </div>
 
           <!-- Block 2: week + datums + werklast -->
-          <div v-if="weekInfo" class="header-block">
+          <div v-if="weekInfo" class="header-block header-block-week">
             <div class="titel-row">
               <span class="week-label">Week {{ weekInfo.week }}</span>
               <span v-if="weekInfo.datum" class="datum-inline">– {{ weekInfo.datum }}</span>
             </div>
             <div class="subtitel">Werklast <span class="werklast-badge">{{ stats.totalMinuten }}'</span></div>
           </div>
-
-          <!-- Mini weekgrid -->
-          <WeekGrid v-if="state.weken.length" mini />
 
           <!-- Upload -->
           <label v-if="!isReadOnly" class="tb-btn tb-upload" data-tooltip="Studiewijzer importeren" data-tooltip-pos="bottom" @dragover.prevent @drop.prevent="onDrop">
@@ -81,9 +75,6 @@
             </button>
           </div>
 
-          <!-- DEV badge -->
-          <span v-if="isDev" class="dev-badge">DEV</span>
-
           <!-- Avatar / profile dropdown -->
           <div class="avatar-wrapper" @click.stop="showProfile = !showProfile">
             <img v-if="userAvatar" :src="userAvatar" class="avatar" referrerpolicy="no-referrer" />
@@ -93,21 +84,6 @@
                 <span v-if="userName" class="profile-name">{{ userName }}</span>
                 <span class="profile-email">{{ userEmail }}</span>
                 <span v-if="profielLabel" class="profile-profiel">{{ profielLabel }}</span>
-              </div>
-              <!-- Mobile-only actions -->
-              <div class="mobile-menu-actions">
-                <button class="dropdown-btn" @click="showProfile = false; toggleNotif()">
-                  <Icon icon="mdi:bell-outline" width="14" height="14" />
-                  Meldingen
-                </button>
-                <button v-if="isEigenaar" class="dropdown-btn" @click="showProfile = false; showDeel = true">
-                  <Icon icon="mdi:share-variant-outline" width="14" height="14" />
-                  Delen
-                </button>
-                <button v-if="isEigenaar" class="dropdown-btn dropdown-danger" @click="showProfile = false; onReset()">
-                  <Icon icon="mdi:delete-outline" width="14" height="14" />
-                  Reset
-                </button>
               </div>
               <button v-if="!isReadOnly" class="dropdown-btn" @click="showProfile = false; setView('config')">
                 <Icon icon="mdi:cog-outline" width="14" height="14" />
@@ -144,6 +120,64 @@
         </div>
       </main>
 
+      <!-- Mobile bottom nav -->
+      <nav v-if="state.weken.length" class="bottom-nav no-print">
+        <button :class="{ active: view === 'dashboard' }" @click="setView('dashboard')">
+          <Icon icon="mdi:view-dashboard-outline" width="22" height="22" />
+          <span>Dashboard</span>
+        </button>
+        <button :class="{ active: view === 'weekplan' && wpViewMode === 'dag' }" @click="setView('dag')">
+          <Icon icon="mdi:view-day-outline" width="22" height="22" />
+          <span>Dag</span>
+        </button>
+        <button :class="{ active: view === 'kanban' }" @click="setView('kanban')">
+          <Icon icon="mdi:view-week" width="22" height="22" />
+          <span>Kanban</span>
+        </button>
+        <button :class="{ active: showMobileMenu }" @click.stop="showMobileMenu = !showMobileMenu">
+          <Icon icon="mdi:menu" width="22" height="22" />
+          <span>Menu</span>
+        </button>
+      </nav>
+
+      <!-- Mobile menu overlay -->
+      <div v-if="showMobileMenu" class="mobile-overlay no-print" @click="showMobileMenu = false">
+        <div class="mobile-menu" @click.stop>
+          <div class="profile-info">
+            <div class="mobile-menu-avatar">
+              <img v-if="userAvatar" :src="userAvatar" class="avatar" referrerpolicy="no-referrer" />
+              <div v-else class="avatar avatar-initials">{{ userInitials }}</div>
+            </div>
+            <div>
+              <span v-if="userName" class="profile-name">{{ userName }}</span>
+              <span class="profile-email">{{ userEmail }}</span>
+            </div>
+          </div>
+          <div class="mobile-menu-items">
+            <button @click="showMobileMenu = false; toggleNotif()">
+              <Icon icon="mdi:bell-outline" width="18" height="18" />
+              Meldingen
+            </button>
+            <button v-if="isEigenaar" @click="showMobileMenu = false; showDeel = true">
+              <Icon icon="mdi:share-variant-outline" width="18" height="18" />
+              Delen
+            </button>
+            <button v-if="!isReadOnly" @click="showMobileMenu = false; setView('config')">
+              <Icon icon="mdi:cog-outline" width="18" height="18" />
+              Instellingen
+            </button>
+            <button v-if="isEigenaar" class="menu-danger" @click="showMobileMenu = false; onReset()">
+              <Icon icon="mdi:delete-outline" width="18" height="18" />
+              Reset
+            </button>
+            <button class="menu-logout" @click="showMobileMenu = false; onLogout()">
+              <Icon icon="mdi:logout" width="18" height="18" />
+              Uitloggen
+            </button>
+          </div>
+        </div>
+      </div>
+
       <DeelModal
         v-if="showDeel && state.plannerId"
         :plannerId="state.plannerId"
@@ -168,7 +202,6 @@ import WeekPlanner from './WeekPlanner.vue';
 import ConfiguratieView from './ConfiguratieView.vue';
 import StudiewijzerView from './StudiewijzerView.vue';
 import DashboardView from './DashboardView.vue';
-import WeekGrid from './WeekGrid.vue';
 
 const props = defineProps({
   plannerId: { type: String, default: null },
@@ -187,6 +220,7 @@ const fileInput = ref(null);
 const notifBelRef = ref(null);
 const showDeel = ref(false);
 const showProfile = ref(false);
+const showMobileMenu = ref(false);
 const allPlanners = ref([]);
 
 const userEmail = computed(() => auth.state.user?.email || '');
@@ -290,10 +324,6 @@ function onKeydown(e) {
   else if (e.key === 'p' || e.key === 'P') window.print();
 }
 
-function goHome() {
-  router.push('/dashboard');
-}
-
 function switchPlanner(plannerId) {
   router.push(`/planner/${plannerId}`);
 }
@@ -336,34 +366,17 @@ onUnmounted(() => {
   gap: 0.75rem;
 }
 
-.btn-home {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  padding: 0;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  background: var(--clr-surface);
-  cursor: pointer;
-  color: var(--clr-text-muted);
-  transition: all 0.15s;
-  flex-shrink: 0;
-}
-
-.btn-home:hover {
-  color: var(--clr-accent);
-  border-color: var(--clr-accent);
-  background: var(--clr-accent-light);
-}
-
 .header-block {
   display: flex;
   flex-direction: column;
   gap: 0;
   padding-left: 0.75rem;
   border-left: 2px solid var(--clr-border);
+}
+
+.header-block-first {
+  border-left: none;
+  padding-left: 0;
 }
 
 .titel-row {
@@ -617,46 +630,88 @@ nav {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Desktop/mobile action groups ---- */
+/* ---- Desktop action group ---- */
 .desktop-actions {
   display: flex;
   align-items: center;
   gap: 0.35rem;
 }
 
-.mobile-menu-actions {
+/* ---- DEV indicator bar ---- */
+.dev-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #ef4444, #f59e0b, #ef4444);
+  z-index: 9999;
+  pointer-events: none;
+}
+
+/* ---- Bottom nav (mobile only) ---- */
+.bottom-nav {
   display: none;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding-top: 0.35rem;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--clr-surface);
   border-top: 1px solid var(--clr-border);
+  padding: 0.3rem 0;
+  padding-bottom: max(0.3rem, env(safe-area-inset-bottom));
+  z-index: 100;
+  justify-content: space-around;
+}
+.bottom-nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  background: none;
+  border: none;
+  color: var(--clr-text-muted);
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+  transition: color 0.15s;
+  font-family: inherit;
+}
+.bottom-nav button.active {
+  color: var(--clr-accent);
 }
 
-.dropdown-danger:hover {
-  border-color: #ef4444;
-  color: #ef4444;
-  background: #fef2f2;
+/* ---- Mobile menu overlay ---- */
+.mobile-overlay {
+  display: none;
 }
-
-/* ---- DEV badge ---- */
-.dev-badge {
-  font-size: 0.55rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  color: #dc2626;
-  background: #fef2f2;
-  border: 1.5px solid #fca5a5;
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
-  line-height: 1;
+.mobile-menu {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--clr-surface);
+  border-radius: 16px 16px 0 0;
+  padding: 1.25rem;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
 }
 
 /* ---- Responsive ---- */
 
 @media (max-width: 700px) {
+  /* Header: hide desktop nav + home button, keep info only */
+  header nav {
+    display: none !important;
+  }
   .header-left {
     gap: 0.4rem;
     flex-wrap: wrap;
+    width: 100%;
+  }
+  .tb-upload {
+    display: none !important;
   }
   .planner-naam, .planner-select, .week-label {
     font-size: 1rem;
@@ -664,37 +719,89 @@ nav {
   .header-block {
     padding-left: 0.5rem;
   }
-  .tb-spacer {
-    display: none;
+  .header-block-week {
+    margin-left: auto;
+    text-align: right;
   }
-  .desktop-actions {
-    display: none;
+
+  /* Add bottom padding so content doesn't hide behind bottom nav */
+  main {
+    padding-bottom: 4.5rem;
   }
-  .tb-upload {
-    display: none !important;
-  }
-  .mobile-menu-actions {
+
+  /* Bottom nav */
+  .bottom-nav {
     display: flex;
   }
-  .view-switcher button,
-  .tb-btn,
-  .btn-home {
-    width: 2.4rem;
-    height: 2.4rem;
+
+  /* Mobile menu */
+  .mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.3);
+    z-index: 200;
   }
-  .avatar {
-    width: 2.4rem;
-    height: 2.4rem;
+  .mobile-menu .profile-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--clr-border);
+    margin-bottom: 0.75rem;
+  }
+  .mobile-menu-avatar .avatar {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+  .mobile-menu .profile-name {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .mobile-menu .profile-email {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--clr-text-muted);
+  }
+  .mobile-menu-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .mobile-menu-items button {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.5rem;
+    border: none;
+    background: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--clr-text);
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit;
+  }
+  .mobile-menu-items button:hover,
+  .mobile-menu-items button:active {
+    background: var(--clr-bg);
+  }
+  .mobile-menu-items .menu-danger {
+    color: #ef4444;
+  }
+  .mobile-menu-items .menu-logout {
+    color: var(--clr-text-muted);
+    margin-top: 0.25rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--clr-border);
+    border-radius: 0;
   }
 }
 
 @media (max-width: 480px) {
   .header-left {
     gap: 0.3rem;
-  }
-  .btn-home {
-    width: 2rem;
-    height: 2rem;
   }
   .header-block {
     padding-left: 0.4rem;
@@ -709,19 +816,6 @@ nav {
   .werklast-badge {
     font-size: 0.7rem;
     padding: 0.05rem 0.35rem;
-  }
-  /* Hide mini weekgrid on very small screens */
-  .wg-mini {
-    display: none;
-  }
-  .view-switcher button,
-  .tb-btn {
-    width: 2.2rem;
-    height: 2.2rem;
-  }
-  .avatar {
-    width: 2.2rem;
-    height: 2.2rem;
   }
 }
 </style>

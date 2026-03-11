@@ -253,6 +253,8 @@ const verdictText = computed(() => {
 <style scoped>
 .wg {
   padding: 12px 0;
+  max-width: 560px;
+  margin: 0 auto;
 }
 
 .wg-row {
@@ -267,12 +269,12 @@ const verdictText = computed(() => {
 }
 .wg-uur-label {
   flex: 1;
+  min-width: 0;
   font-size: 0.5rem;
   font-weight: 600;
   color: var(--clr-text-muted);
   text-align: center;
   line-height: 1;
-  min-width: 0;
 }
 
 /* Dag label */
@@ -291,14 +293,16 @@ const verdictText = computed(() => {
 
 /* Minuten label rechts */
 .wg-label-cell {
-  width: 32px;
   flex-shrink: 0;
-  font-size: 0.55rem;
-  font-weight: 600;
+  font-size: 0.6rem;
+  font-weight: 700;
   color: var(--clr-text-muted);
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  padding-left: 4px;
 }
 .wg-min-rood { color: #ef4444; }
 .wg-min-groen { color: var(--clr-klaar); }
@@ -306,10 +310,10 @@ const verdictText = computed(() => {
 
 /* Uur-blokken */
 .wg-cel {
-  width: 16px;
-  height: 16px;
+  flex: 1;
+  min-width: 0;
+  aspect-ratio: 1;
   border-radius: 3px;
-  flex-shrink: 0;
   transition: opacity 0.15s;
 }
 
@@ -335,6 +339,7 @@ const verdictText = computed(() => {
   gap: 8px;
   font-size: 0.6rem;
   color: var(--clr-text-muted);
+  margin-left: 23px; /* align with first cell (dag-cell 20px + gap 3px) */
 }
 .wg-dot {
   display: inline-block;

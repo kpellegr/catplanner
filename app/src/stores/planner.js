@@ -733,7 +733,7 @@ async function resetAlles() {
 
 const wpViewMode = ref('week');   // 'week' | 'dag'
 const wpFocusDag = ref(null);     // 'ma'..'zo', null = vandaag
-const activeView = ref('kanban'); // 'kanban' | 'weekplan' | 'studiewijzer' | 'config'
+const activeView = ref('dashboard'); // 'dashboard' | 'kanban' | 'weekplan' | 'studiewijzer' | 'config'
 
 // ---- Export ----
 
