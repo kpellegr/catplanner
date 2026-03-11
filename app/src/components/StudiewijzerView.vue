@@ -109,6 +109,7 @@
                 <th class="col-tijd">Tijd</th>
                 <th class="col-flags">Flags</th>
                 <th class="col-volgorde">V</th>
+                <th class="col-status">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -161,6 +162,16 @@
                 <td class="col-volgorde">
                   <span v-if="taak.volgorde" class="volgorde-num">{{ taak.volgorde }}</span>
                 </td>
+                <td class="col-status" @click.stop>
+                  <span
+                    v-if="taakStatusInfo(taak, week).label"
+                    :class="taakStatusInfo(taak, week).cls"
+                    class="status-link"
+                    @click="goToWeekView(taak, week)"
+                  >
+                    {{ taakStatusInfo(taak, week).label }}
+                  </span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -176,7 +187,7 @@ import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { filterVoorProfiel } from '../lib/parser.js';
 
-const { state, saveConfiguratie, isReadOnly, wekenTaakIds, taakId, includeTaak, excludeTaak, selectedTaakId, selectTaak } = usePlanner();
+const { state, saveConfiguratie, isReadOnly, wekenTaakIds, taakId, includeTaak, excludeTaak, selectedTaakId, selectTaak, activeView, wpViewMode } = usePlanner();
 
 onMounted(() => {
   if (selectedTaakId.value) {
@@ -324,6 +335,29 @@ function isTaakKlaar(taak, week) {
   return status === 'klaar' || status === 'ingediend';
 }
 
+const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
+const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
+const now = new Date();
+const vandaagIdx = dagen.indexOf(dagen[[6, 0, 1, 2, 3, 4, 5][now.getDay()]]);
+
+function taakStatusInfo(taak, week) {
+  const key = rawTaakKey(taak, week.metadata);
+  const status = state.voortgang[key]?.status || 'open';
+  const planVal = state.planning[key] || null;
+  const geplandOp = planVal ? (typeof planVal === 'string' ? planVal : planVal.dag) : null;
+
+  if (status === 'ingediend') return { label: 'Ingediend', cls: 'status-ingediend' };
+  if (status === 'klaar') return { label: 'In te dienen', cls: 'status-intedienen' };
+  if (geplandOp) {
+    const dagIdx = dagen.indexOf(geplandOp);
+    if (dagIdx < vandaagIdx && status !== 'klaar' && status !== 'ingediend') {
+      return { label: dagKort[geplandOp], cls: 'status-overdue' };
+    }
+    return { label: dagKort[geplandOp], cls: 'status-gepland' };
+  }
+  return { label: '', cls: '' };
+}
+
 function isVakActief(vakNaam) {
   const vak = state.configuratie?.vakken?.[vakNaam];
   return vak?.actief !== false;
@@ -419,6 +453,13 @@ function vakKoppelingen(vakNaam) {
 }
 
 function print() { window.print(); }
+
+function goToWeekView(taak, week) {
+  const key = rawTaakKey(taak, week.metadata);
+  activeView.value = 'weekplan';
+  wpViewMode.value = 'week';
+  selectTaak(key);
+}
 
 const FLAG_TIPS = { P: 'Papier', M: 'Materiaal', U: 'Uitgesteld', G: 'Groepswerk', X: 'Onbekend' };
 function flagTip(f) { return FLAG_TIPS[f] || f; }
@@ -801,12 +842,33 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 }
 
 /* Columns */
-.col-richting { width: 60px; }
-.col-code { width: 80px; font-family: monospace; font-size: 0.75rem; color: var(--clr-text-muted); }
+.col-richting { width: 100px; }
+.col-code { width: 80px; font-size: 0.75rem; color: var(--clr-text-muted); }
 .col-omschrijving { /* flex */ }
-.col-tijd { width: 60px; text-align: right; white-space: nowrap; }
-.col-flags { width: 60px; }
+.col-tijd { width: 50px; text-align: center; white-space: nowrap; }
+.col-flags { width: 50px; text-align: center; }
 .col-volgorde { width: 24px; text-align: center; }
+.col-status { width: 70px; text-align: center; white-space: nowrap; }
+
+/* Status labels */
+.status-gepland {
+  font-size: 0.65rem; font-weight: 700; color: var(--clr-accent);
+  background: var(--clr-accent-light); padding: 0.1rem 0.35rem; border-radius: 3px;
+}
+.status-overdue {
+  font-size: 0.65rem; font-weight: 700; color: #b45309;
+  background: #fffbeb; padding: 0.1rem 0.35rem; border-radius: 3px;
+}
+.status-intedienen {
+  font-size: 0.65rem; font-weight: 700; color: #b91c1c;
+  background: #fef2f2; padding: 0.1rem 0.35rem; border-radius: 3px;
+}
+.status-ingediend {
+  font-size: 0.65rem; font-weight: 700; color: #059669;
+  background: #ecfdf5; padding: 0.1rem 0.35rem; border-radius: 3px;
+}
+.status-link { cursor: pointer; }
+.status-link:hover { opacity: 0.8; text-decoration: underline; }
 
 .richting-label {
   font-size: 0.65rem;
@@ -902,6 +964,7 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
   .sw-tabel th.col-richting { display: none; }
   .col-incl { display: none; }
   .sw-tabel th.col-incl { display: none; }
+  .col-status span { color: black !important; background: none !important; font-weight: 700; }
 
   .sw-section {
     break-inside: avoid;

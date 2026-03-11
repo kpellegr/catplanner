@@ -628,6 +628,7 @@ async function resetAlles() {
 
 const wpViewMode = ref('week');   // 'week' | 'dag'
 const wpFocusDag = ref(null);     // 'ma'..'zo', null = vandaag
+const activeView = ref('kanban'); // 'kanban' | 'weekplan' | 'studiewijzer' | 'config'
 
 // ---- Export ----
 
@@ -644,6 +645,7 @@ export function usePlanner() {
     isEigenaar,
     wpViewMode,
     wpFocusDag,
+    activeView,
     taakId,
     init,
     importRaw,

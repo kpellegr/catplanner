@@ -144,10 +144,10 @@ const props = defineProps({
 });
 
 const router = useRouter();
-const { state, stats, isReadOnly, isEigenaar, resetAlles, init, wpViewMode } = usePlanner();
+const { state, stats, isReadOnly, isEigenaar, resetAlles, init, wpViewMode, activeView } = usePlanner();
 const auth = useAuth();
 
-const view = ref('kanban');
+const view = activeView;
 const fileUploadRef = ref(null);
 const fileInput = ref(null);
 const showDeel = ref(false);
