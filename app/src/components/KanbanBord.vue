@@ -82,6 +82,7 @@
             @click="onKaartClick(taak, kolom)"
             @dblclick="!isReadOnly && openEdit(taak)"
             @toggle-klaar="toggleKlaar"
+            @cycle-status="cycleStatus"
           />
         </div>
       </template>
@@ -394,6 +395,11 @@ function toggleKlaar(taak) {
   if (newStatus === 'klaar') fireConfetti();
 }
 
+function cycleStatus(taak, newStatus) {
+  updateVoortgang(taak.id, { status: newStatus });
+  if (newStatus === 'klaar' || newStatus === 'ingediend') fireConfetti();
+}
+
 function drop(e, status) {
   dragOverCel.value = null;
   if (!draggingTaak.value) return;
@@ -586,13 +592,13 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
 
 .kolom-open .kolom-minuten { color: var(--clr-todo); }
 .kolom-bezig .kolom-minuten { color: var(--clr-bezig); }
-.kolom-klaar .kolom-minuten { color: var(--clr-klaar); }
-.kolom-ingediend .kolom-minuten { color: var(--clr-accent); }
+.kolom-klaar .kolom-minuten { color: #7c3aed; }
+.kolom-ingediend .kolom-minuten { color: #059669; }
 
 .kolom-open { border-bottom-color: var(--clr-todo); }
 .kolom-bezig { border-bottom-color: var(--clr-bezig); }
-.kolom-klaar { border-bottom-color: var(--clr-klaar); }
-.kolom-ingediend { border-bottom-color: var(--clr-accent); }
+.kolom-klaar { border-bottom-color: #7c3aed; }
+.kolom-ingediend { border-bottom-color: #059669; }
 
 /* ---- Vak row header ---- */
 
@@ -658,8 +664,8 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
 
 .mini-open { color: var(--clr-todo); }
 .mini-bezig { color: var(--clr-bezig); }
-.mini-klaar { color: var(--clr-klaar); }
-.mini-ingediend { color: var(--clr-accent); }
+.mini-klaar { color: #7c3aed; }
+.mini-ingediend { color: #059669; }
 
 /* Chain and drag highlight CSS now in TaakKaart.vue */
 

@@ -54,19 +54,21 @@
           @click.stop="$emit('toggle-klaar', taak)"
         >&#10003;</button>
         <span v-if="taak.code" class="code">{{ taak.code }}</span>
-        <span v-if="keten" class="kaart-keten" :title="ketenTooltipText">
-          <template v-for="(stap, si) in keten" :key="stap.id">
-            <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
-            <span v-if="si < keten.length - 1" class="keten-pijl">&rarr;</span>
-          </template>
-        </span>
         <div class="flags">
           <span v-for="flag in taak.flags" :key="flag" class="flag" :title="flagTooltip(flag)">{{ flag }}</span>
         </div>
         <span class="kaart-duur prominent" :title="duurTooltipText">{{ duurText }}</span>
       </div>
       <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
-      <span v-if="geplandLabel" class="kaart-gepland">{{ geplandLabel }}</span>
+      <div class="kaart-bottom">
+        <span v-if="keten" class="kaart-keten" :title="ketenTooltipText">
+          <template v-for="(stap, si) in keten" :key="stap.id">
+            <span class="keten-stap" :class="[ketenStapKleur(stap, taak), { 'keten-eigen': stap.id === taak.id }]">{{ stap.volgorde }}</span>
+            <span v-if="si < keten.length - 1" class="keten-pijl">&rarr;</span>
+          </template>
+        </span>
+        <button class="kaart-status" :class="statusClass" @click.stop="cycleStatus" :title="'Klik: ' + (nextStatus[taak.voortgang?.status || 'open'] || 'open')">{{ statusLabel }}</button>
+      </div>
     </template>
   </div>
 </template>
@@ -92,7 +94,38 @@ const props = defineProps({
   isSelected: { type: Boolean, default: false },
 });
 
-defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
+const emit = defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar', 'cycle-status']);
+
+import { computed } from 'vue';
+
+const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
+
+const statusLabel = computed(() => {
+  const s = props.taak.voortgang?.status;
+  if (s === 'ingediend') return 'Ingediend';
+  if (s === 'klaar') return 'Klaar';
+  const dag = props.taak.geplandOp;
+  if (props.isOverdue) return dagKort[dag] || 'Overdue';
+  if (dag) return dagKort[dag] || dag;
+  return 'Open';
+});
+
+const statusClass = computed(() => {
+  const s = props.taak.voortgang?.status;
+  if (s === 'ingediend') return 'status-ingediend';
+  if (s === 'klaar') return 'status-klaar';
+  if (props.isOverdue) return 'status-overdue';
+  if (props.taak.geplandOp) return 'status-gepland';
+  return 'status-open';
+});
+
+const nextStatus = { open: 'klaar', bezig: 'klaar', klaar: 'ingediend', ingediend: 'open' };
+
+function cycleStatus() {
+  const current = props.taak.voortgang?.status || 'open';
+  const next = nextStatus[current] || 'open';
+  emit('cycle-status', props.taak, next);
+}
 </script>
 
 <style scoped>
@@ -109,10 +142,7 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
 }
 .kanban-kaart:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
 .kanban-kaart.dragging { opacity: 0.5; transform: rotate(1deg); }
-.kanban-kaart.is-klaar { opacity: 0.6; }
-.kanban-kaart.is-klaar .kaart-tekst,
-.kanban-kaart.is-klaar .code,
-.kanban-kaart.is-klaar .kaart-compact-row .code { text-decoration: line-through; }
+.kanban-kaart.is-klaar { opacity: 0.7; }
 
 .kanban-kaart.is-selected {
   outline: 2px solid var(--clr-accent, #6366f1);
@@ -122,8 +152,7 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
 }
 
 .kanban-kaart.is-overdue { border-left-color: #f59e0b !important; }
-.kanban-kaart.is-overdue .kaart-gepland { color: #f59e0b; font-weight: 700; }
-.kanban-kaart.is-in-te-dienen { border-left-color: #ef4444 !important; }
+.kanban-kaart.is-in-te-dienen { border-left-color: #7c3aed !important; }
 
 /* Type border colors: rooster=indigo, huistaak/Z=slate */
 .kanban-kaart.is-rooster-les { border-left-color: #6366f1; }
@@ -169,12 +198,33 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
 .kaart-check-btn:hover { border-color: #059669; color: #059669; background: #ecfdf5; }
 .kaart-check-btn.checked { background: #059669; border-color: #059669; color: white; }
 
-/* ---- Planned label ---- */
-.kaart-gepland {
-  font-size: 0.7rem;
-  color: var(--clr-text-muted);
-  font-variant-numeric: tabular-nums;
+/* ---- Bottom row (status) ---- */
+.kaart-bottom {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
 }
+
+.kaart-status {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.2rem 0.45rem;
+  border-radius: 3px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  margin-left: auto;
+}
+.kaart-status:hover { filter: brightness(0.9); transform: scale(1.05); }
+.kaart-status.status-open { background: var(--clr-bg); color: var(--clr-text-muted); }
+.kaart-status.status-gepland { background: var(--clr-accent-light); color: var(--clr-accent); }
+.kaart-status.status-overdue { background: #fffbeb; color: #b45309; }
+.kaart-status.status-klaar { background: #7c3aed; color: white; }
+.kaart-status.status-ingediend { background: #ecfdf5; color: #059669; }
 
 /* ---- Duration badge ---- */
 .kaart-duur {

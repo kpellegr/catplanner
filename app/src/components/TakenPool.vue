@@ -50,11 +50,13 @@
             :duur-tooltip-text="duurTooltipFn(taak)"
             :gepland-label="geplandLabelFn(taak)"
             :is-rooster-les="isRoosterLesFn(taak)"
+            :is-overdue="isOverdueFn(taak)"
             @dragstart="$emit('card-dragstart', $event, taak)"
             @dragend="$emit('card-dragend', $event)"
             @click="$emit('card-click', taak)"
             @dblclick="$emit('card-dblclick', taak)"
             @toggle-klaar="$emit('card-toggle-klaar', taak)"
+            @cycle-status="(t, s) => $emit('card-cycle-status', t, s)"
           />
         </template>
       </template>
@@ -100,11 +102,13 @@ const props = defineProps({
   geplandLabelFn: { type: Function, default: () => '' },
   // Rooster-op-les check function (provided by parent)
   isRoosterLesFn: { type: Function, default: () => false },
+  // Overdue check function (provided by parent)
+  isOverdueFn: { type: Function, default: () => false },
 });
 
 const emit = defineEmits([
   'dragenter', 'dragleave', 'drop',
-  'card-dragstart', 'card-dragend', 'card-dblclick', 'card-toggle-klaar',
+  'card-dragstart', 'card-dragend', 'card-dblclick', 'card-toggle-klaar', 'card-cycle-status',
   'resize',
 ]);
 

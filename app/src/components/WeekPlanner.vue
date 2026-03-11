@@ -73,6 +73,7 @@
         :duur-tooltip-fn="duurTooltip"
         :gepland-label-fn="geplandLabel"
         :is-rooster-les-fn="isRoosterOpLes"
+        :is-overdue-fn="isOverdue"
         @dragenter="dragOverTarget = '__pool__'"
         @dragleave="onDragLeave($event, '__pool__')"
         @drop="onDropPool($event)"
@@ -80,6 +81,7 @@
         @card-dragstart="(e, taak) => onDragStart(e, taak)"
         @card-dragend="onDragEnd"
         @card-toggle-klaar="toggleKlaar"
+        @card-cycle-status="cycleStatus"
       >
         <template #empty>
           Alle taken ingepland!
@@ -1112,6 +1114,11 @@ async function resetWeekplan() {
 function toggleKlaar(taak) {
   if (isReadOnly.value) return;
   const newStatus = taak.voortgang.status === 'klaar' ? 'open' : 'klaar';
+  updateVoortgang(taak.id, { status: newStatus });
+}
+
+function cycleStatus(taak, newStatus) {
+  if (isReadOnly.value) return;
   updateVoortgang(taak.id, { status: newStatus });
 }
 
