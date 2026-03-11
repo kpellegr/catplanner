@@ -88,15 +88,43 @@
             <span v-if="!isVakActief(section.vak) && vakFilterReden(section, week)" class="sw-vak-reden">
               {{ vakFilterReden(section, week) }}
             </span>
-            <!-- Rooster koppeling -->
-            <span v-if="vakKoppelingen(section.vak).length" class="sw-koppeling">
-              <Icon icon="mdi:link-variant" width="12" height="12" />
-              <span v-for="t in vakKoppelingen(section.vak)" :key="t" class="koppeling-chip">{{ t }}</span>
-            </span>
-            <span v-else-if="isVakActief(section.vak) && heeftRooster" class="sw-koppeling sw-koppeling-geen">
-              <Icon icon="mdi:link-variant-off" width="12" height="12" />
-              niet gekoppeld
-            </span>
+          </div>
+          <!-- Rooster koppeling -->
+          <div v-if="isVakActief(section.vak) && heeftRooster" class="sw-koppeling-rij">
+            <span class="koppeling-label">Rooster:</span>
+            <!-- Actieve koppelingen (groen) -->
+            <button
+              v-for="t in gekoppeldeTitels(section.vak)"
+              :key="'a-'+t"
+              class="koppeling-pill active"
+              @click.stop="toggleKoppeling(section.vak, t)"
+              :title="`${t} ontkoppelen`"
+            >{{ t }}</button>
+            <!-- Suggesties (oranje) -->
+            <button
+              v-for="t in suggestieTitels(section.vak)"
+              :key="'s-'+t"
+              class="koppeling-pill suggestie"
+              @click.stop="toggleKoppeling(section.vak, t)"
+              :title="`${t} koppelen (suggestie)`"
+            >{{ t }}</button>
+            <span v-if="!gekoppeldeTitels(section.vak).length && !suggestieTitels(section.vak).length" class="koppeling-hint">niet gekoppeld</span>
+            <!-- Openklapbare overige pills -->
+            <button
+              v-if="overigeTitels(section.vak).length"
+              class="koppeling-expand-btn"
+              @click.stop="toggleOverig(section.vak)"
+              :title="overigOpen.has(section.vak) ? 'Overige verbergen' : 'Meer lessen tonen'"
+            >{{ overigOpen.has(section.vak) ? '▾' : `+${overigeTitels(section.vak).length}` }}</button>
+          </div>
+          <div v-if="isVakActief(section.vak) && heeftRooster && overigOpen.has(section.vak) && overigeTitels(section.vak).length" class="sw-koppeling-rij sw-koppeling-overig">
+            <button
+              v-for="t in overigeTitels(section.vak)"
+              :key="'o-'+t"
+              class="koppeling-pill"
+              @click.stop="toggleKoppeling(section.vak, t)"
+              :title="`${t} koppelen`"
+            >{{ t }}</button>
           </div>
 
           <!-- Taken tabel -->
@@ -158,7 +186,7 @@
                   <span v-else-if="taak.tijd?.type === 'nvt'" class="tijd-nvt">—</span>
                 </td>
                 <td class="col-flags">
-                  <span v-for="f in (taak.flags || [])" :key="f" class="flag-chip" :title="flagTip(f)">{{ f }}</span>
+                  <span v-for="f in (taak.flags || [])" :key="f" class="flag-badge" :class="`flag-${f.toLowerCase()}`" :title="flagTip(f)">{{ f }}</span>
                 </td>
                 <td class="col-volgorde">
                   <span v-if="taak.volgorde" class="volgorde-num">{{ taak.volgorde }}</span>
@@ -188,7 +216,7 @@ import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { filterVoorProfiel } from '../lib/parser.js';
 
-const { state, saveConfiguratie, isReadOnly, wekenTaakIds, taakId, includeTaak, excludeTaak, selectedTaakId, selectTaak, activeView, wpViewMode } = usePlanner();
+const { state, saveConfiguratie, isReadOnly, wekenTaakIds, taakId, includeTaak, excludeTaak, selectedTaakId, selectTaak, activeView, wpViewMode, matchesVak } = usePlanner();
 
 onMounted(() => {
   if (selectedTaakId.value) {
@@ -447,10 +475,85 @@ const heeftRooster = computed(() => {
   return false;
 });
 
-function vakKoppelingen(vakNaam) {
+// ---- Rooster koppeling helpers ----
+
+const alleRoosterTitels = computed(() => {
+  const wr = state.weekRooster;
+  if (!wr) return [];
+  const set = new Set();
+  for (const dag of ['ma', 'di', 'wo', 'do', 'vr']) {
+    const slots = wr[dag];
+    if (!slots || typeof slots !== 'object') continue;
+    for (const blok of Object.values(slots)) {
+      if (blok?.type === 'les' && blok?.titel) set.add(blok.titel);
+    }
+  }
+  return [...set].sort();
+});
+
+function isGekoppeld(vakNaam, titel) {
   const vak = state.configuratie?.vakken?.[vakNaam];
-  if (!vak?.roosterTitels?.length) return [];
-  return vak.roosterTitels;
+  if (!vak?.roosterTitels?.length) return false;
+  const lower = titel.toLowerCase();
+  return vak.roosterTitels.some(t => t.toLowerCase() === lower);
+}
+
+function isVerworpen(vakNaam, titel) {
+  const vak = state.configuratie?.vakken?.[vakNaam];
+  if (!vak?.verworpenKoppelingen?.length) return false;
+  const lower = titel.toLowerCase();
+  return vak.verworpenKoppelingen.some(t => t.toLowerCase() === lower);
+}
+
+function isSuggestie(vakNaam, titel) {
+  if (isGekoppeld(vakNaam, titel)) return false;
+  if (isVerworpen(vakNaam, titel)) return false;
+  const vak = state.configuratie?.vakken?.[vakNaam];
+  return matchesVak(titel.toLowerCase(), vakNaam, vak);
+}
+
+function gekoppeldeTitels(vakNaam) {
+  return alleRoosterTitels.value.filter(t => isGekoppeld(vakNaam, t));
+}
+
+function suggestieTitels(vakNaam) {
+  return alleRoosterTitels.value.filter(t => isSuggestie(vakNaam, t));
+}
+
+function overigeTitels(vakNaam) {
+  return alleRoosterTitels.value.filter(t => !isGekoppeld(vakNaam, t) && !isSuggestie(vakNaam, t));
+}
+
+const overigOpen = ref(new Set());
+
+function toggleOverig(vakNaam) {
+  const s = new Set(overigOpen.value);
+  if (s.has(vakNaam)) s.delete(vakNaam); else s.add(vakNaam);
+  overigOpen.value = s;
+}
+
+function toggleKoppeling(vakNaam, titel) {
+  if (isReadOnly.value) return;
+  const config = JSON.parse(JSON.stringify(state.configuratie));
+  if (!config.vakken) config.vakken = {};
+  if (!config.vakken[vakNaam]) config.vakken[vakNaam] = { actief: true, zRoute: false, aliassen: [], roosterTitels: [] };
+  const arr = config.vakken[vakNaam].roosterTitels || [];
+  const verworpen = config.vakken[vakNaam].verworpenKoppelingen || [];
+  const lower = titel.toLowerCase();
+  const idx = arr.findIndex(t => t.toLowerCase() === lower);
+  if (idx >= 0) {
+    // Uitzetten: verwijder uit roosterTitels, voeg toe aan verworpen
+    arr.splice(idx, 1);
+    if (!verworpen.some(t => t.toLowerCase() === lower)) verworpen.push(titel);
+  } else {
+    // Aanzetten: voeg toe aan roosterTitels, verwijder uit verworpen
+    arr.push(titel);
+    const vIdx = verworpen.findIndex(t => t.toLowerCase() === lower);
+    if (vIdx >= 0) verworpen.splice(vIdx, 1);
+  }
+  config.vakken[vakNaam].roosterTitels = arr;
+  config.vakken[vakNaam].verworpenKoppelingen = verworpen;
+  saveConfiguratie(config);
 }
 
 function print() { window.print(); }
@@ -463,12 +566,14 @@ function goToWeekView(taak, week) {
 }
 
 const FLAG_TIPS = { P: 'Papier', M: 'Materiaal', U: 'Uitgesteld', G: 'Groepswerk', X: 'Onbekend' };
+const FLAG_LABELS = { P: 'Papier', M: 'Materiaal', U: 'Uitgesteld', G: 'Groep', X: 'Onbekend' };
 function flagTip(f) { return FLAG_TIPS[f] || f; }
+function flagLabel(f) { return FLAG_LABELS[f] || f; }
 </script>
 
 <style scoped>
 .sw-view {
-  max-width: 950px;
+  max-width: 100%;
 }
 
 .sw-header {
@@ -483,7 +588,7 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 
 .sw-header h2 {
   margin: 0 0 0.25rem;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 700;
 }
 
@@ -565,7 +670,7 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 .sw-hint {
   font-size: 0.8rem;
   color: var(--clr-text-muted);
-  margin: 0;
+  margin: 0.35rem 0 0;
   line-height: 1.5;
 }
 
@@ -589,23 +694,23 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 
 .sw-week-label {
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
 .sw-week-datum {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--clr-text-muted);
 }
 
 .sw-week-totals {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--clr-text-muted);
   margin-left: auto;
 }
 
 /* Groep header (hoofdgroep) */
 .sw-groep-header {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -640,24 +745,24 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 
 .sw-vak-naam {
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 
 .sw-project-titel {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 400;
   font-style: italic;
   color: var(--clr-text-muted);
 }
 
 .sw-vak-stats {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--clr-text-muted);
   margin-left: auto;
 }
 
 .sw-vak-reden {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-style: italic;
   color: #d97706;
   background: #fef3c7;
@@ -665,17 +770,23 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
   border-radius: 3px;
 }
 
-.sw-koppeling {
-  display: inline-flex;
+.sw-koppeling-rij {
+  display: flex;
   align-items: center;
-  gap: 0.2rem;
-  font-size: 0.65rem;
-  color: #059669;
-  margin-left: 0.5rem;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem 0.35rem;
+  background: var(--clr-bg);
+  border-bottom: 1px solid var(--clr-border);
+  flex-wrap: wrap;
 }
 
-.sw-koppeling-geen {
-  color: #d97706;
+.koppeling-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-right: 0.15rem;
 }
 
 .koppeling-chip {
@@ -684,6 +795,81 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
   padding: 0.05rem 0.3rem;
   border-radius: 3px;
   font-weight: 500;
+}
+
+.koppeling-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.4rem;
+  border: 1.5px solid var(--clr-border);
+  border-radius: 999px;
+  background: white;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.koppeling-pill:hover {
+  border-color: #059669;
+  color: #059669;
+  background: #ecfdf5;
+}
+
+.koppeling-pill.active {
+  background: #059669;
+  border-color: #059669;
+  color: white;
+}
+
+.koppeling-pill.active:hover {
+  background: #047857;
+  border-color: #047857;
+}
+
+.koppeling-pill.suggestie {
+  border-color: #f59e0b;
+  color: #b45309;
+  background: #fffbeb;
+}
+
+.koppeling-pill.suggestie:hover {
+  background: #fef3c7;
+  border-color: #d97706;
+}
+
+.koppeling-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.45rem;
+  border: 1.5px dashed var(--clr-border);
+  border-radius: 999px;
+  background: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.koppeling-expand-btn:hover {
+  border-color: var(--clr-accent);
+  color: var(--clr-accent);
+  background: var(--clr-accent-light);
+}
+
+.sw-koppeling-overig {
+  padding-left: calc(0.75rem + 3.2rem);
+  background: var(--clr-surface);
+}
+
+.koppeling-hint {
+  font-size: 0.65rem;
+  font-style: italic;
+  color: #d97706;
 }
 
 /* Toggle button */
@@ -724,25 +910,26 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 .sw-tabel {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
+  table-layout: fixed;
 }
 
 .sw-tabel th {
   text-align: left;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--clr-text-muted);
-  padding: 0.3rem 0.5rem;
+  padding: 0.35rem 0.6rem;
   border-bottom: 1px solid var(--clr-border);
   background: var(--clr-bg);
 }
 
 .sw-tabel td {
-  padding: 0.3rem 0.5rem;
+  padding: 0.4rem 0.6rem;
   border-bottom: 1px solid rgba(0,0,0,0.04);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .sw-tabel tr:last-child td {
@@ -754,26 +941,28 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 }
 
 /* Toggle taak button */
-.col-incl { width: 28px; text-align: center; }
+.col-incl { width: 32px; text-align: center; }
 
 .btn-toggle-taak {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1.5px solid var(--clr-border);
   background: white;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
   cursor: pointer;
   line-height: 1;
   transition: all 0.15s;
+  color: transparent;
 }
 
 .btn-toggle-taak.incl-ja {
   border-color: #10b981;
+  background: white;
   color: #10b981;
 }
 
@@ -785,17 +974,17 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 
 .btn-toggle-taak.incl-nee {
   border-color: #d1d5db;
-  color: #9ca3af;
+  color: #d1d5db;
 }
 
 .btn-toggle-taak.incl-nee:hover {
-  background: #ecfdf5;
   border-color: #10b981;
   color: #10b981;
+  background: #ecfdf5;
 }
 
-.incl-ja-static { color: #10b981; font-weight: 700; font-size: 0.75rem; }
-.incl-nee-static { color: #d1d5db; font-weight: 700; font-size: 0.75rem; }
+.incl-ja-static { color: #10b981; font-weight: 700; font-size: 0.7rem; }
+.incl-nee-static { color: #d1d5db; font-weight: 700; font-size: 0.7rem; }
 
 /* Geselecteerde taak */
 .taak-selected td {
@@ -842,49 +1031,48 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 
 .filter-reden {
   display: block;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   color: #d97706;
   font-style: italic;
   text-decoration: none;
-  margin-top: 0.1rem;
+  margin-top: 0.15rem;
 }
 
-/* Columns */
-.col-richting { width: 100px; }
-.col-code { width: 80px; font-size: 0.75rem; color: var(--clr-text-muted); }
+/* Columns — all data inherits .sw-tabel font-size (0.85rem) */
+.col-richting { width: 110px; }
+.col-code { width: 75px; }
 .col-omschrijving { /* flex */ }
-.col-tijd { width: 50px; text-align: center; white-space: nowrap; }
-.col-flags { width: 50px; text-align: center; }
-.col-volgorde { width: 24px; text-align: center; }
-.col-status { width: 70px; text-align: center; white-space: nowrap; }
+.col-tijd { width: 55px; text-align: center; white-space: nowrap; }
+.col-flags { width: 60px; text-align: center; white-space: nowrap; }
+.col-volgorde { width: 28px; text-align: center; }
+.col-status { width: 80px; text-align: center; white-space: nowrap; }
 
 /* Status labels */
 .status-gepland {
-  font-size: 0.65rem; font-weight: 700; color: var(--clr-accent);
-  background: var(--clr-accent-light); padding: 0.1rem 0.35rem; border-radius: 3px;
+  font-size: 0.7rem; font-weight: 700; color: var(--clr-accent);
+  background: var(--clr-accent-light); padding: 0.15rem 0.4rem; border-radius: 4px;
 }
 .status-overdue {
-  font-size: 0.65rem; font-weight: 700; color: #b45309;
-  background: #fffbeb; padding: 0.1rem 0.35rem; border-radius: 3px;
+  font-size: 0.7rem; font-weight: 700; color: #b45309;
+  background: #fffbeb; padding: 0.15rem 0.4rem; border-radius: 4px;
 }
 .status-intedienen {
-  font-size: 0.65rem; font-weight: 700; color: #b91c1c;
-  background: #fef2f2; padding: 0.1rem 0.35rem; border-radius: 3px;
+  font-size: 0.7rem; font-weight: 700; color: #7c3aed;
+  background: #f5f3ff; padding: 0.15rem 0.4rem; border-radius: 4px;
 }
 .status-ingediend {
-  font-size: 0.65rem; font-weight: 700; color: #059669;
-  background: #ecfdf5; padding: 0.1rem 0.35rem; border-radius: 3px;
+  font-size: 0.7rem; font-weight: 700; color: #059669;
+  background: #ecfdf5; padding: 0.15rem 0.4rem; border-radius: 4px;
 }
 .status-link { cursor: pointer; }
 .status-link:hover { opacity: 0.8; text-decoration: underline; }
 
 .richting-label {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--clr-text-muted);
-  background: var(--clr-bg);
-  padding: 0.05rem 0.25rem;
-  border-radius: 3px;
+  font-weight: 400;
+}
+
+.col-code {
+  font-weight: 700;
 }
 
 /* Tijd badges */
@@ -893,9 +1081,9 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
   background: #fef3c7;
   color: #92400e;
   font-weight: 700;
-  font-size: 0.7rem;
-  padding: 0.05rem 0.3rem;
-  border-radius: 3px;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
 }
 
 .tijd-rooster-zelf {
@@ -903,9 +1091,9 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
   background: #fef3c7;
   color: #92400e;
   font-weight: 600;
-  font-size: 0.65rem;
-  padding: 0.05rem 0.3rem;
-  border-radius: 3px;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
 }
 
 .tijd-minuten {
@@ -913,7 +1101,7 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 }
 
 .tijd-route {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--clr-text-muted);
 }
 
@@ -921,29 +1109,35 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
   color: var(--clr-text-muted);
 }
 
-/* Flags */
-.flag-chip {
+/* Flag badges */
+.flag-badge {
   display: inline-block;
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  color: var(--clr-text-muted);
-  background: var(--clr-bg);
-  padding: 0.05rem 0.25rem;
-  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
   margin-right: 0.15rem;
   cursor: help;
+  min-width: 1.1em;
+  text-align: center;
 }
 
+.flag-p { background: #dbeafe; color: #1e40af; }
+.flag-m { background: #e0e7ff; color: #3730a3; }
+.flag-u { background: #fef3c7; color: #92400e; }
+.flag-g { background: #ede9fe; color: #6d28d9; }
+.flag-x { background: var(--clr-bg); color: var(--clr-text-muted); }
+
 .volgorde-num {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: var(--clr-text-muted);
   background: var(--clr-bg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
 }
 
@@ -966,8 +1160,7 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
   .taak-uitgesloten { display: none; }
   .btn-toggle-taak { display: none; }
   .toggle-btn { display: none; }
-  .sw-koppeling { display: none; }
-  .sw-koppeling-geen { display: none; }
+  .sw-koppeling-rij { display: none; }
   .col-richting { display: none; }
   .sw-tabel th.col-richting { display: none; }
   .col-incl { display: none; }
@@ -1021,7 +1214,7 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
     print-color-adjust: exact;
   }
 
-  .flag-chip {
+  .flag-badge {
     background: #eee !important;
     color: #333;
     -webkit-print-color-adjust: exact;

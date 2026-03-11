@@ -490,15 +490,19 @@ function extractKeywords(naam) {
 
 function matchesVak(titelLower, vakNaam, vakConfig) {
   const vakLower = vakNaam.toLowerCase();
-  const vakWords = extractKeywords(vakNaam);
-  const titelWords = extractKeywords(titelLower);
-  const aliassen = (vakConfig?.aliassen || []).map(a => a.toLowerCase());
 
   // Exact match
   if (vakLower === titelLower) return true;
 
+  // Very short titles (< 4 chars) — only exact match, no fuzzy
+  if (titelLower.length < 4) return false;
+
+  const vakWords = extractKeywords(vakNaam);
+  const titelWords = extractKeywords(titelLower);
+  const aliassen = (vakConfig?.aliassen || []).map(a => a.toLowerCase());
+
   // First keyword of vak matches titel (both must be >= 4 chars)
-  if (vakWords.length && vakWords[0].length >= 4 && titelLower.length >= 4 && (
+  if (vakWords.length && vakWords[0].length >= 4 && (
     titelLower.includes(vakWords[0]) || vakWords[0].includes(titelLower)
   )) return true;
 
