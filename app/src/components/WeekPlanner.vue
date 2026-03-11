@@ -24,10 +24,11 @@
     </FilterBar>
 
     <!-- Connected header bar: pool header + gutter + day headers -->
-    <div class="wp-connected-header">
-      <div class="wp-pool-header" :style="{ width: poolRef?.currentWidth + 'px' }">
+    <div class="wp-connected-header" :style="{ paddingRight: scrollbarWidth + 'px' }">
+      <div class="wp-pool-header" :style="{ width: poolWidth + 'px' }">
         <span class="wp-pool-count"><strong>{{ ongeplandCount }}</strong> ongepland <span class="wp-pool-total">/ {{ alleTaken.length }}</span></span>
         <span class="wp-pool-minuten">{{ poolRef?.totalMinuten ?? 0 }}'</span>
+        <div class="wp-pool-resize-handle" @mousedown.prevent="onPoolResizeStart"></div>
       </div>
       <div
         v-for="dag in zichtbareDagen"
@@ -61,6 +62,8 @@
         :taken="gefilterdeOngeplande"
         titel="Ongepland"
         headerless
+        :width="poolWidth"
+        :resizable="false"
         :read-only="isReadOnly"
         :is-drag-over="dragOverTarget === '__pool__'"
         :selected-taak-id="selectedTaakId"
@@ -94,7 +97,7 @@
         <div class="wp-timeline-wrap">
 
           <!-- Scrollable timeline -->
-          <div class="wp-timeline-row">
+          <div ref="timelineRowRef" class="wp-timeline-row">
             <!-- Day columns -->
             <div
               v-for="dag in zichtbareDagen"
@@ -291,6 +294,35 @@ const TOTAL_PX = computed(() => TOTAL_BLOKKEN * BLOK_PX.value);
 // Deadline line: 21:00 on the timeline
 
 const poolRef = ref(null);
+const poolWidth = ref(280);
+const timelineRowRef = ref(null);
+const scrollbarWidth = ref(0);
+
+// ---- Pool resize (header handle) ----
+let poolResizeStartX = 0;
+let poolResizeStartW = 0;
+
+function onPoolResizeStart(e) {
+  poolResizeStartX = e.clientX;
+  poolResizeStartW = poolWidth.value;
+  document.addEventListener('mousemove', onPoolResizeMove);
+  document.addEventListener('mouseup', onPoolResizeEnd);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+}
+function onPoolResizeMove(e) {
+  const dx = e.clientX - poolResizeStartX;
+  poolWidth.value = Math.max(180, Math.min(500, poolResizeStartW + dx));
+  // Sync TakenPool width
+  if (poolRef.value) poolRef.value.currentWidth = poolWidth.value;
+}
+function onPoolResizeEnd() {
+  document.removeEventListener('mousemove', onPoolResizeMove);
+  document.removeEventListener('mouseup', onPoolResizeEnd);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+}
+
 const dragOverTarget = ref(null);
 const draggingTaak = ref(null);
 const dropBlok = ref(null);
@@ -1184,15 +1216,23 @@ function onResizeEnd() {
 const now = ref(new Date());
 let nowTimer = null;
 
+function measureScrollbar() {
+  const el = timelineRowRef.value;
+  if (el) scrollbarWidth.value = el.offsetWidth - el.clientWidth;
+}
+
 onMounted(() => {
   nowTimer = setInterval(() => { now.value = new Date(); }, 60000);
   // Set focusDag to today only on first visit
   if (!focusDag.value && vandaagDag.value) focusDag.value = vandaagDag.value;
+  nextTick(measureScrollbar);
+  window.addEventListener('resize', measureScrollbar);
 });
 onUnmounted(() => {
   if (nowTimer) clearInterval(nowTimer);
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('mouseup', onResizeEnd);
+  window.removeEventListener('resize', measureScrollbar);
 });
 
 // Which day column is "today"?
@@ -1260,6 +1300,30 @@ function isOverdue(taak) {
   padding: 0.5rem 0.75rem;
   border-right: 1px solid var(--clr-border);
   font-size: 0.9rem;
+  position: relative;
+}
+
+.wp-pool-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+.wp-pool-resize-handle::after {
+  content: '⋮';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.75rem;
+  color: var(--clr-border);
+  transition: color 0.15s;
+}
+.wp-pool-resize-handle:hover::after {
+  color: var(--clr-accent);
 }
 .wp-pool-count {
   font-size: 0.7rem;
