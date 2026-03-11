@@ -51,7 +51,7 @@
               <Icon icon="mdi:view-week" width="18" height="18" />
             </button>
             <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'week' }" @click="setView('week')" title="Week (W)">
-              <Icon icon="mdi:view-week-outline" width="18" height="18" />
+              <Icon icon="mdi:calendar-multiselect-outline" width="18" height="18" />
             </button>
             <button v-if="state.weken.length" :class="{ active: view === 'weekplan' && wpViewMode === 'dag' }" @click="setView('dag')" title="Dag (D)">
               <Icon icon="mdi:view-day-outline" width="18" height="18" />

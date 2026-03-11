@@ -107,12 +107,15 @@
               v-for="dag in zichtbareDagen"
               :key="dag"
               class="wp-tl-col"
-              :class="{
-                'wp-tl-dragover': dragOverTarget === dag,
-                'is-weekend': dag === 'za' || dag === 'zo',
-                'is-vandaag': dag === vandaagDag,
-                'is-focus': viewMode === 'dag',
-              }"
+              :class="[
+                {
+                  'wp-tl-dragover': dragOverTarget === dag,
+                  'is-weekend': dag === 'za' || dag === 'zo',
+                  'is-vandaag': dag === vandaagDag,
+                  'is-focus': viewMode === 'dag',
+                },
+                dragOverTarget === dag ? dropIndicatorClass(dag) : ''
+              ]"
               @dragover.prevent="onDragOverTimeline($event, dag)"
               @dragenter.prevent="dragOverTarget = dag"
               @dragleave="onDragLeave($event, dag)"
@@ -133,11 +136,12 @@
                   v-for="slot in roosterSlots(dag)"
                   :key="'r-' + slot.uur"
                   class="wp-rooster-band"
-                  :class="[`wp-band-${slot.type}`, { 'wp-band-selected': isBandSelected(slot), 'wp-band-drag-match': isBandDragMatch(slot) }]"
+                  :class="[`wp-band-${slot.type}`, bandDropStatus(slot, dag), { 'wp-band-selected': isBandSelected(slot), 'wp-band-drag-match': isBandDragMatch(slot) }]"
                   :style="slotStyle(slot)"
                   @click="slot.type === 'les' ? toggleVakFilter(slot.titel) : null"
                 >
                   <span class="wp-band-label">{{ kortLabel(slot.titel) }}</span>
+                  <Icon v-if="isBandDragMatch(slot)" icon="mdi:target" class="band-drop-icon" :class="bandDropStatus(slot, dag)" />
                 </div>
 
 
@@ -147,7 +151,9 @@
                   class="wp-drop-indicator"
                   :class="dropIndicatorClass(dag)"
                   :style="{ top: dropBlok * BLOK_PX + 'px', height: draggingTaakBlokken * BLOK_PX + 'px' }"
-                ></div>
+                >
+                  <Icon icon="mdi:target" class="drop-icon" />
+                </div>
 
                 <!-- "Nu" indicator line -->
                 <div
@@ -178,6 +184,7 @@
                   :style="{ top: placed.blok * BLOK_PX + 'px', height: placed.blokken * BLOK_PX + 'px' }"
                   :draggable="!isReadOnly"
                   :title="compactTooltip(placed.taak)"
+                  @click="toggleVakFilter(placed.taak.vak)"
                   @dragstart="onDragStart($event, placed.taak)"
                   @dragend="onDragEnd"
                 >
@@ -206,17 +213,12 @@
                         <button v-if="placed.taak.voortgang.status !== 'klaar' && placed.taak.voortgang.status !== 'ingediend'" class="tl-unplan" @click.stop="unplan(placed.taak)">&times;</button>
                       </div>
                       <p class="kaart-tekst">{{ placed.taak.omschrijving }}</p>
+                      <span v-if="placed.taak.geplandBlok != null" class="tl-gepland-label">{{ blokToTijd(placed.blok) }} – {{ blokToTijd(placed.blok + placed.blokken) }}</span>
                     </div>
                   </template>
                   <!-- Compact card in week view / side columns -->
                   <template v-else>
                     <div class="tl-compact-row">
-                      <button
-                        class="tl-check-btn"
-                        :class="{ checked: placed.taak.voortgang.status === 'klaar' || placed.taak.voortgang.status === 'ingediend' }"
-                        :title="placed.taak.voortgang.status === 'klaar' ? 'Markeer als open' : 'Markeer als klaar'"
-                        @click.stop="toggleKlaar(placed.taak)"
-                      >✓</button>
                       <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" title="Achterstand!">!</span>
                       <span class="tl-code">{{ placed.taak.code || kortVak(placed.taak.vak) }}</span>
                       <span v-if="taakKeten(placed.taak)" class="kaart-keten tl-keten" :title="ketenTooltip(placed.taak)">
@@ -324,6 +326,20 @@ function compactTooltip(taak) {
   if (isOverdue(taak)) parts.push('⚠ Achterstand!');
   parts.push('Sleep onderrand om duur aan te passen');
   return parts.join('\n');
+}
+
+function blokToTijd(blok) {
+  const min = blok * 15 + 8 * 60 + 30; // timeline starts at 8:30
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+function geplandLabel(taak) {
+  if (!taak.geplandOp) return '';
+  const dag = dagKort[taak.geplandOp] || taak.geplandOp;
+  if (taak.geplandBlok != null) return `${dag} ${blokToTijd(taak.geplandBlok)}`;
+  return dag;
 }
 
 function taakBlokken(taak) {
@@ -443,40 +459,41 @@ function effectiveTemporalRank(taak) {
 
 // Weekplanner-specific: uses temporal position (dag + blok) for conflict detection
 // During drag, uses the preview position for live feedback
-function ketenStapKleur(stap, kaart) {
-  if (stap.id !== kaart.id) return 'keten-grijs';
+// Colors ALL steps in the chain — checks both predecessor AND successor
+function ketenStapKleur(stap) {
   const keten = taakKetenMap.value.get(stap.id);
   if (!keten) return 'keten-grijs';
   const idx = keten.findIndex(t => t.id === stap.id);
 
   const gepland = effectiveGeplandOp(stap);
-
-  // First in chain
-  if (idx === 0) {
-    return gepland ? 'keten-groen' : 'keten-grijs';
-  }
-
-  // Not planned → grey
   if (!gepland) return 'keten-grijs';
 
-  const voorganger = keten[idx - 1];
+  const stapTR = effectiveTemporalRank(stap);
+  let hasConflict = false;
+  let hasWarning = false;
 
-  // Predecessor is done → always ok
-  if (voorganger.voortgang.status === 'klaar' || voorganger.voortgang.status === 'ingediend') {
-    return 'keten-groen';
+  // Check predecessor (must be before this step)
+  if (idx > 0) {
+    const voor = keten[idx - 1];
+    if (voor.voortgang.status !== 'klaar' && voor.voortgang.status !== 'ingediend') {
+      const voorGepland = effectiveGeplandOp(voor);
+      if (!voorGepland) hasWarning = true;
+      else if (effectiveTemporalRank(voor) >= stapTR) hasConflict = true;
+    }
   }
 
-  const voorGepland = effectiveGeplandOp(voorganger);
+  // Check successor (must be after this step)
+  if (idx < keten.length - 1) {
+    const na = keten[idx + 1];
+    if (na.voortgang.status !== 'klaar' && na.voortgang.status !== 'ingediend') {
+      const naGepland = effectiveGeplandOp(na);
+      if (naGepland && effectiveTemporalRank(na) <= stapTR) hasConflict = true;
+    }
+  }
 
-  // Predecessor not planned → orange warning
-  if (!voorGepland) return 'keten-oranje';
-
-  // Both planned: check temporal order (using effective positions during drag)
-  const stapTR = effectiveTemporalRank(stap);
-  const voorTR = effectiveTemporalRank(voorganger);
-
-  if (voorTR >= stapTR) return 'keten-rood'; // predecessor at same time or after
-  return 'keten-groen'; // predecessor before
+  if (hasConflict) return 'keten-rood';
+  if (hasWarning) return 'keten-oranje';
+  return 'keten-groen';
 }
 
 const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenMap, ketenStapKleur);
@@ -712,6 +729,44 @@ function isBandDragMatch(slot) {
   return titels.has(slot.titel.toLowerCase());
 }
 
+// Chain conflict status if the dragged task were placed at this band's position
+function bandDropStatus(slot, dag) {
+  if (!isBandDragMatch(slot) || !draggingTaak.value) return '';
+  const taak = draggingTaak.value;
+  const keten = taakKetenMap.value.get(taak.id);
+  if (!keten) return 'band-ok';
+  const idx = keten.findIndex(t => t.id === taak.id);
+
+  const bandBlok = (slot.uur - 1) * BLOKKEN_PER_UUR;
+  const bandTR = dagen.indexOf(dag) * TOTAL_BLOKKEN + bandBlok;
+
+  let hasConflict = false;
+  let hasWarning = false;
+
+  // Check predecessor (must be before this position)
+  if (idx > 0) {
+    const voor = keten[idx - 1];
+    if (voor.voortgang.status !== 'klaar' && voor.voortgang.status !== 'ingediend') {
+      const voorGepland = effectiveGeplandOp(voor);
+      if (!voorGepland) hasWarning = true;
+      else if (effectiveTemporalRank(voor) >= bandTR) hasConflict = true;
+    }
+  }
+
+  // Check successor (must be after this position)
+  if (idx < keten.length - 1) {
+    const na = keten[idx + 1];
+    if (na.voortgang.status !== 'klaar' && na.voortgang.status !== 'ingediend') {
+      const naGepland = effectiveGeplandOp(na);
+      if (naGepland && effectiveTemporalRank(na) <= bandTR) hasConflict = true;
+    }
+  }
+
+  if (hasConflict) return 'band-conflict';
+  if (hasWarning) return 'band-warn';
+  return 'band-ok';
+}
+
 // ---- Capacity ----
 
 function beschikbareMinuten(dag) {
@@ -807,7 +862,7 @@ function snapBlok(blok, dag, taakId) {
   return Math.max(0, Math.min(blok, TOTAL_BLOKKEN - blokken));
 }
 
-// Check if drop position would overlap
+// Check if drop position would overlap or cause chain conflict
 function dropIndicatorClass(dag) {
   if (!draggingTaak.value || dropBlok.value === null) return '';
   const blokken = taakBlokken(draggingTaak.value);
@@ -816,6 +871,11 @@ function dropIndicatorClass(dag) {
   for (const p of placed) {
     if (snapped < p.blok + p.blokken && snapped + blokken > p.blok) return 'drop-conflict';
   }
+  // Check chain conflict for the dragged task at this position
+  const kleur = ketenStapKleur(draggingTaak.value);
+  if (kleur === 'keten-rood') return 'drop-conflict';
+  if (kleur === 'keten-oranje') return 'drop-warn';
+  if (kleur === 'keten-groen') return 'drop-ok';
   return '';
 }
 
@@ -1195,7 +1255,13 @@ function isOverdue(taak) {
   border-left: 1px solid var(--clr-border);
 }
 .wp-tl-col.is-weekend { background: rgba(0,0,0,0.025); }
-.wp-tl-col.wp-tl-dragover { background: rgba(99, 102, 241, 0.04); }
+.wp-tl-col.wp-tl-dragover {
+  outline: 2px dashed var(--clr-accent);
+  outline-offset: -2px;
+}
+.wp-tl-col.drop-ok { outline-color: #10b981; }
+.wp-tl-col.drop-warn { outline-color: #d97706; }
+.wp-tl-col.drop-conflict { outline-color: #ef4444; }
 
 
 /* Focus column styling */
@@ -1247,17 +1313,10 @@ function isOverdue(taak) {
 }
 .wp-band-les:hover { background: rgba(99, 102, 241, 0.2); border-left-color: var(--clr-accent); }
 
-/* Bezet-banden: diagonale strepen, duidelijk "geblokkeerd" */
+/* Bezet-banden: zacht pastel, activiteiten */
 .wp-band-bezet {
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      rgba(245, 158, 11, 0.07),
-      rgba(245, 158, 11, 0.07) 4px,
-      rgba(245, 158, 11, 0.15) 4px,
-      rgba(245, 158, 11, 0.15) 8px
-    );
-  border-left: 3px solid rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.08);
+  border-left: 3px solid rgba(245, 158, 11, 0.35);
 }
 
 /* Vrij-banden */
@@ -1289,33 +1348,78 @@ function isOverdue(taak) {
 .wp-band-selected .wp-band-label { color: var(--clr-accent); }
 
 .wp-band-drag-match {
-  background: rgba(16, 185, 129, 0.18) !important;
-  border-left-color: #10b981 !important;
-  animation: band-pulse 0.8s ease-in-out infinite;
+  outline: 2px dashed var(--clr-accent);
+  outline-offset: -2px;
 }
-.wp-band-drag-match .wp-band-label { color: #059669; }
+.wp-band-drag-match .wp-band-label { color: var(--clr-accent); }
 
-@keyframes band-pulse {
-  0%, 100% { box-shadow: inset 0 0 0 0 rgba(16, 185, 129, 0.1); }
-  50% { box-shadow: inset 0 0 8px 2px rgba(16, 185, 129, 0.25); }
+/* Band drop status colors */
+.wp-band-drag-match.band-ok {
+  outline-color: #10b981;
+  border-left-color: #10b981 !important;
 }
+.wp-band-drag-match.band-ok .wp-band-label { color: #059669; }
+
+.wp-band-drag-match.band-warn {
+  outline-color: #d97706;
+  border-left-color: #d97706 !important;
+}
+.wp-band-drag-match.band-warn .wp-band-label { color: #d97706; }
+
+.wp-band-drag-match.band-conflict {
+  outline-color: #ef4444;
+  border-left-color: #ef4444 !important;
+}
+.wp-band-drag-match.band-conflict .wp-band-label { color: #dc2626; }
+
+.band-drop-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  opacity: 0.4;
+  pointer-events: none;
+  color: var(--clr-accent);
+}
+.band-drop-icon.band-ok { color: #10b981; }
+.band-drop-icon.band-warn { color: #d97706; }
+.band-drop-icon.band-conflict { color: #ef4444; }
 
 /* ---- Drop indicator ---- */
 .wp-drop-indicator {
   position: absolute;
   left: 2px; right: 2px;
-  background: rgba(99, 102, 241, 0.15);
   border: 2px dashed var(--clr-accent);
   border-radius: 4px;
   z-index: 5;
   pointer-events: none;
-  animation: drop-pulse 0.8s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drop-icon {
+  color: var(--clr-accent);
+  opacity: 0.35;
+  width: 24px;
+  height: 24px;
 }
 
+.wp-drop-indicator.drop-ok {
+  border-color: #10b981;
+}
+.wp-drop-indicator.drop-ok .drop-icon { color: #10b981; }
+
+.wp-drop-indicator.drop-warn {
+  border-color: #d97706;
+}
+.wp-drop-indicator.drop-warn .drop-icon { color: #d97706; }
+
 .wp-drop-indicator.drop-conflict {
-  background: rgba(239, 68, 68, 0.15);
   border-color: #ef4444;
 }
+.wp-drop-indicator.drop-conflict .drop-icon { color: #ef4444; }
 
 @keyframes drop-pulse {
   0%, 100% { opacity: 0.5; }
@@ -1346,21 +1450,9 @@ function isOverdue(taak) {
 .wp-tl-taak.dragging { opacity: 0.4; }
 .wp-tl-taak:active { cursor: grabbing; }
 
-.wp-tl-taak.hg-wetenschap { border-left-color: var(--clr-wetenschap); }
-.wp-tl-taak.hg-talen { border-left-color: var(--clr-talen); }
-.wp-tl-taak.hg-wiskunde { border-left-color: var(--clr-wiskunde); }
-.wp-tl-taak.hg-project { border-left-color: var(--clr-project); }
-
-/* Rooster tasks: dashed border, white background */
-.wp-tl-taak.is-rooster {
-  border-left-style: dashed;
-  background: white;
-}
-
-/* Huistaken: clean white card (default) */
-.wp-tl-taak.is-huistaak {
-  background: white;
-}
+/* Type border colors: rooster=oranje, huistaak=blauw */
+.wp-tl-taak.is-rooster { border-left-color: #d97706; background: white; }
+.wp-tl-taak.is-huistaak { border-left-color: #3b82f6; background: white; }
 
 /* Klaar: strikethrough + faded */
 .wp-tl-taak.is-klaar {
@@ -1403,6 +1495,12 @@ function isOverdue(taak) {
 }
 .tl-day-card .kaart-top { margin-bottom: 0.15rem; }
 .tl-day-card .kaart-tekst { -webkit-line-clamp: 2; }
+.tl-gepland-label {
+  font-size: 0.7rem;
+  color: var(--clr-text-muted);
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.15rem;
+}
 /* Focus column: cards get more room */
 .is-focus .wp-tl-taak {
   padding: 3px 8px;

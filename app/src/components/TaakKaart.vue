@@ -6,6 +6,8 @@
       dragRelatedClass,
       {
         'is-rooster': taak.tijd?.type === 'rooster',
+        'is-klaar': taak.voortgang?.status === 'klaar' || taak.voortgang?.status === 'ingediend',
+        'is-overdue': isOverdue,
         dragging: isDragging,
         compact: compact,
         expanded: compact && isExpanded,
@@ -42,6 +44,12 @@
     <!-- Full card -->
     <template v-else>
       <div class="kaart-top">
+        <button
+          class="kaart-check-btn"
+          :class="{ checked: taak.voortgang?.status === 'klaar' || taak.voortgang?.status === 'ingediend' }"
+          :title="taak.voortgang?.status === 'klaar' ? 'Markeer als open' : 'Markeer als klaar'"
+          @click.stop="$emit('toggle-klaar', taak)"
+        >&#10003;</button>
         <span v-if="taak.code" class="code">{{ taak.code }}</span>
         <span v-if="keten" class="kaart-keten" :title="ketenTooltipText">
           <template v-for="(stap, si) in keten" :key="stap.id">
@@ -55,6 +63,7 @@
         <span class="kaart-duur prominent" :title="duurTooltipText">{{ duurText }}</span>
       </div>
       <p class="kaart-tekst">{{ taak.omschrijving || '(geen omschrijving)' }}</p>
+      <span v-if="geplandLabel" class="kaart-gepland">{{ geplandLabel }}</span>
     </template>
   </div>
 </template>
@@ -74,9 +83,11 @@ const props = defineProps({
   ketenStapKleur: { type: Function, default: () => 'keten-grijs' },
   duurText: { type: String, default: '' },
   duurTooltipText: { type: String, default: '' },
+  geplandLabel: { type: String, default: '' },
+  isOverdue: { type: Boolean, default: false },
 });
 
-defineEmits(['dragstart', 'dragend', 'click', 'dblclick']);
+defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
 </script>
 
 <style scoped>
@@ -93,14 +104,17 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick']);
 }
 .kanban-kaart:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
 .kanban-kaart.dragging { opacity: 0.5; transform: rotate(1deg); }
+.kanban-kaart.is-klaar { opacity: 0.6; }
+.kanban-kaart.is-klaar .kaart-tekst,
+.kanban-kaart.is-klaar .code,
+.kanban-kaart.is-klaar .kaart-compact-row .code { text-decoration: line-through; }
 
-/* Hoofdgroep border colors */
-.kanban-kaart.hg-wetenschap { border-left-color: var(--clr-wetenschap); }
-.kanban-kaart.hg-talen { border-left-color: var(--clr-talen); }
-.kanban-kaart.hg-wiskunde { border-left-color: var(--clr-wiskunde); }
-.kanban-kaart.hg-project { border-left-color: var(--clr-project); }
+.kanban-kaart.is-overdue { border-left-color: #ef4444 !important; background: #fef2f2; }
+.kanban-kaart.is-overdue .kaart-gepland { color: #ef4444; font-weight: 700; }
 
-.kanban-kaart.is-rooster { border-left-style: dashed; }
+/* Type border colors: rooster=oranje, huistaak=blauw */
+.kanban-kaart.is-rooster { border-left-color: #d97706; }
+.kanban-kaart:not(.is-rooster) { border-left-color: #3b82f6; }
 
 /* ---- Top row ---- */
 .kaart-top {
@@ -122,6 +136,30 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick']);
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ---- Check button ---- */
+.kaart-check-btn {
+  width: 16px; height: 16px;
+  border: 1.5px solid var(--clr-border);
+  border-radius: 3px;
+  background: white;
+  color: transparent;
+  font-size: 0.6rem; font-weight: 900;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+}
+.kaart-check-btn:hover { border-color: #059669; color: #059669; background: #ecfdf5; }
+.kaart-check-btn.checked { background: #059669; border-color: #059669; color: white; }
+
+/* ---- Planned label ---- */
+.kaart-gepland {
+  font-size: 0.7rem;
+  color: var(--clr-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- Duration badge ---- */

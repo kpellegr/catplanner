@@ -9,7 +9,7 @@
     <div class="import-strip">
       <label class="import-btn">
         <input type="file" accept=".md,.txt" @change="onImport" hidden />
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 10v3a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-3"/><polyline points="5 5 8 2 11 5"/><line x1="8" y1="2" x2="8" y2="10"/></svg>
+        <Icon icon="mdi:upload-outline" width="14" height="14" />
         Rooster importeren (.md)
       </label>
     </div>
@@ -105,6 +105,7 @@
 
 <script setup>
 import { ref, computed, nextTick, watch } from 'vue';
+import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 
 const { state, saveWeekRooster, isReadOnly } = usePlanner();

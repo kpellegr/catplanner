@@ -32,6 +32,9 @@
 
     <!-- Task list grouped by vak -->
     <div class="pool-taken" :class="{ 'drag-over': isDragOver }">
+      <div v-if="isDragOver" class="drop-icon-overlay">
+        <Icon icon="mdi:target" width="32" height="32" />
+      </div>
       <template v-for="groep in groepen" :key="groep.naam">
         <button class="vak-rij-header" @click="toggleVak(groep.naam)">
           <span class="vak-chevron" :class="{ open: isVakOpen(groep.naam) }">&#9656;</span>
@@ -73,6 +76,7 @@
 
 <script setup>
 import { ref, computed, onUnmounted } from 'vue';
+import { Icon } from '@iconify/vue';
 import { useVakGroepen } from '../composables/useTakenLogic.js';
 import TaakKaart from './TaakKaart.vue';
 
@@ -214,7 +218,23 @@ defineExpose({ currentWidth, totalMinuten, allesOpen, toggleAlles });
   min-height: 60px;
   transition: background 0.15s;
 }
-.pool-taken.drag-over { background: var(--clr-accent-light); }
+.pool-taken.drag-over {
+  outline: 2px dashed var(--clr-accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+  position: relative;
+}
+.drop-icon-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--clr-accent);
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+}
 
 /* ---- Vak header ---- */
 .vak-rij-header {

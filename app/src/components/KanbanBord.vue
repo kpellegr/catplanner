@@ -13,6 +13,11 @@
         @click="verbergHuistaken = !verbergHuistaken"
       >Huistaken</button>
     </div>
+    <div class="segmented-group">
+      <button :class="{ on: kanbanFilter === 'all' }" @click="kanbanFilter = 'all'">Alle</button>
+      <button :class="{ on: kanbanFilter === 'overdue' }" @click="kanbanFilter = 'overdue'">Achterstand</button>
+      <button :class="{ on: kanbanFilter === 'today' }" @click="kanbanFilter = 'today'">Vandaag</button>
+    </div>
   </div>
 
   <div class="kanban-grid">
@@ -64,6 +69,9 @@
           @dragleave="dragLeaveCel($event, vak.naam, kolom.status)"
           @drop="drop($event, kolom.status)"
         >
+          <div v-if="dragOverCel === vak.naam + '_' + kolom.status" class="drop-icon-overlay">
+            <Icon icon="mdi:target" width="28" height="28" />
+          </div>
           <TaakKaart
             v-for="taak in vakKolomTaken(vak.naam, kolom.status)"
             :key="taak.id"
@@ -78,15 +86,41 @@
             :keten-stap-kleur="ketenStapKleur"
             :duur-text="formatDuur(taak)"
             :duur-tooltip-text="duurTooltip(taak)"
+            :gepland-label="geplandLabel(taak)"
+            :is-overdue="isOverdue(taak)"
             @dragstart="(e) => !isReadOnly && dragStart(e, taak)"
             @dragend="dragEnd"
-            @click="kolom.compact ? toggleKaart(taak.id) : null"
+            @click="kolom.compact ? openDetail(taak) : null"
             @dblclick="!isReadOnly && openEdit(taak)"
+            @toggle-klaar="toggleKlaar"
           />
         </div>
       </template>
     </template>
 
+  </div>
+
+  <!-- Detail popup (compact card click) -->
+  <div v-if="detailTaak" class="edit-overlay" @click.self="detailTaak = null">
+    <div class="detail-popup">
+      <div class="detail-top">
+        <span v-if="detailTaak.code" class="code">{{ detailTaak.code }}</span>
+        <span class="detail-vak">{{ detailTaak.vak }}</span>
+        <span class="kaart-duur prominent">{{ formatDuur(detailTaak) }}</span>
+        <button class="detail-close" @click="detailTaak = null">&times;</button>
+      </div>
+      <p class="detail-tekst">{{ detailTaak.omschrijving || '(geen omschrijving)' }}</p>
+      <div v-if="detailTaak.flags?.length" class="detail-flags">
+        <span v-for="f in detailTaak.flags" :key="f" class="flag" :title="flagTooltip(f)">{{ f }}</span>
+      </div>
+      <div v-if="geplandLabel(detailTaak)" class="detail-gepland">Gepland: {{ geplandLabel(detailTaak) }}</div>
+      <div class="detail-actions">
+        <button class="btn-klaar" :class="{ checked: detailTaak.voortgang.status === 'klaar' }" @click="toggleKlaar(detailTaak); detailTaak = null">
+          {{ detailTaak.voortgang.status === 'klaar' || detailTaak.voortgang.status === 'ingediend' ? 'Markeer als open' : 'Markeer als klaar' }}
+        </button>
+        <button v-if="!isReadOnly" @click="openEdit(detailTaak); detailTaak = null">Bewerken</button>
+      </div>
+    </div>
   </div>
 
   <!-- Edit modal -->
@@ -122,19 +156,55 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
+import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { hoofdgroepClass, formatDuur, duurTooltip, flagTooltip, flagTooltips, useVakGroepen, useVolgordeKetens, useDragRelated } from '../composables/useTakenLogic.js';
 import TaakKaart from './TaakKaart.vue';
 
 const { alleTaken, updateVoortgang, editTaak, isReadOnly } = usePlanner();
 
+// ---- Date awareness ----
+const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
+const now = new Date();
+const jsDay = now.getDay();
+const dagMap = [6, 0, 1, 2, 3, 4, 5];
+const vandaagDag = dagen[dagMap[jsDay]] || null;
+
+function isOverdue(taak) {
+  if (!taak.geplandOp) return false;
+  if (taak.voortgang.status === 'klaar' || taak.voortgang.status === 'ingediend') return false;
+  return dagen.indexOf(taak.geplandOp) < dagen.indexOf(vandaagDag);
+}
+
+function isVandaag(taak) {
+  return taak.geplandOp === vandaagDag;
+}
+
+const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
+
+function blokToTijd(blok) {
+  const min = blok * 15 + 8 * 60 + 30;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+
+function geplandLabel(taak) {
+  if (!taak.geplandOp) return '';
+  const dag = dagKort[taak.geplandOp] || taak.geplandOp;
+  if (taak.geplandBlok != null) return `${dag} ${blokToTijd(taak.geplandBlok)}`;
+  return dag;
+}
+
 const verbergRooster = ref(false);
 const verbergHuistaken = ref(false);
+const kanbanFilter = ref('all');
 const dragOverCel = ref(null);
 const dragOverStatus = ref(null);
 const draggingTaak = ref(null);
 const confettiCanvas = ref(null);
 const expandedKaarten = reactive({});
+const detailTaak = ref(null);
 const editingTaak = ref(null);
 const editForm = reactive({ code: '', vak: '', omschrijving: '', minuten: 0 });
 
@@ -152,6 +222,11 @@ const gefilterdeTaken = computed(() => {
   }
   if (verbergHuistaken.value) {
     taken = taken.filter((t) => t.tijd?.type === 'rooster');
+  }
+  if (kanbanFilter.value === 'overdue') {
+    taken = taken.filter(t => isOverdue(t));
+  } else if (kanbanFilter.value === 'today') {
+    taken = taken.filter(t => isVandaag(t));
   }
   return taken;
 });
@@ -192,6 +267,10 @@ function vakKolomTaken(vakNaam, status) {
 
 function toggleKaart(id) {
   expandedKaarten[id] = !expandedKaarten[id];
+}
+
+function openDetail(taak) {
+  detailTaak.value = taak;
 }
 
 // ---- Edit ----
@@ -240,6 +319,13 @@ function dragLeaveCel(e, vak, status) {
     const key = vak + '_' + status;
     if (dragOverCel.value === key) dragOverCel.value = null;
   }
+}
+
+function toggleKlaar(taak) {
+  const isKlaar = taak.voortgang.status === 'klaar' || taak.voortgang.status === 'ingediend';
+  const newStatus = isKlaar ? 'open' : 'klaar';
+  updateVoortgang(taak.id, { status: newStatus });
+  if (newStatus === 'klaar') fireConfetti();
 }
 
 function drop(e, status) {
@@ -328,8 +414,8 @@ function effectieveStatus(stap) {
 }
 
 // Kleur per stap op basis van relatie met voorganger
-function ketenStapKleur(stap, kaart) {
-  if (stap.id !== kaart.id) return 'keten-grijs';
+// Colors ALL steps in the chain (not just the card's own step)
+function ketenStapKleur(stap) {
   const keten = taakKetenMap.value.get(stap.id);
   if (!keten) return 'keten-grijs';
   const idx = keten.findIndex(t => t.id === stap.id);
@@ -568,7 +654,21 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
 }
 
 .vak-cel.drag-over {
-  background: var(--clr-accent-light);
+  outline: 2px dashed var(--clr-accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+  position: relative;
+}
+.drop-icon-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--clr-accent);
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Card CSS now in TaakKaart.vue */
@@ -655,6 +755,70 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
   color: white;
   border-color: var(--clr-accent);
   font-weight: 600;
+}
+
+/* ---- Detail popup ---- */
+.detail-popup {
+  background: var(--clr-surface);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  width: min(360px, 90vw);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.detail-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.detail-top .code { font-size: 1rem; }
+.detail-vak {
+  font-size: 0.8rem;
+  color: var(--clr-text-muted);
+  flex: 1;
+}
+.detail-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 1.2rem; color: var(--clr-text-muted); padding: 0 0.25rem;
+}
+.detail-close:hover { color: var(--clr-text); }
+.detail-tekst {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--clr-text);
+}
+.detail-flags { display: flex; gap: 0.25rem; }
+.detail-gepland {
+  font-size: 0.8rem;
+  color: var(--clr-text-muted);
+}
+.detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+.detail-actions button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--clr-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  background: var(--clr-surface);
+  color: var(--clr-text-muted);
+}
+.detail-actions .btn-klaar {
+  background: #059669;
+  color: white;
+  border-color: #059669;
+  font-weight: 600;
+}
+.detail-actions .btn-klaar.checked {
+  background: var(--clr-surface);
+  color: var(--clr-text-muted);
+  border-color: var(--clr-border);
 }
 
 /* ---- Confetti ---- */
