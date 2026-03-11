@@ -1,8 +1,8 @@
 <template>
-  <FilterBar>
+  <FilterBar :ongepland-count="ongeplandCount" :overdue-count="overdueCount" :in-te-dienen-count="inTeDienenCount" :conflict-count="conflictCount">
     <template #expand>
       <button class="btn-expand" @click="toggleAlles" :title="allesOpen ? 'Alles dichtklappen' : 'Alles openklappen'">
-        <span class="expand-icon" :class="{ open: allesOpen }">+</span>
+        <span class="expand-icon" :class="{ open: allesOpen }">&#9656;</span>
       </button>
     </template>
   </FilterBar>
@@ -218,6 +218,9 @@ const gefilterdeTaken = computed(() => {
     if (isRooster && !filters.rooster) return false;
     if (!isRooster && !filters.huistaken) return false;
 
+    // Ongepland drill-down
+    if (filters.alleenOngepland && taak.geplandOp) return false;
+
     // Status filter
     const status = taak.voortgang?.status || 'open';
     const gepland = !!taak.geplandOp;
@@ -242,6 +245,12 @@ const gefilterdeTaken = computed(() => {
     return true;
   });
 });
+
+// Filter counts for FilterBar chips
+const ongeplandCount = computed(() => alleTaken.value.filter(t => !t.geplandOp).length);
+const overdueCount = computed(() => alleTaken.value.filter(t => isOverdue(t)).length);
+const inTeDienenCount = computed(() => alleTaken.value.filter(t => t.voortgang?.status === 'klaar').length);
+const conflictCount = computed(() => alleTaken.value.filter(t => ketenStapKleur(t) === 'keten-rood').length);
 
 const totaalMinuten = computed(() => {
   return gefilterdeTaken.value.reduce((sum, t) => {
@@ -478,7 +487,7 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
 }
 
 .expand-icon {
-  font-size: 1.1rem;
+  font-size: 0.85rem;
   font-weight: 700;
   line-height: 1;
   color: var(--clr-text-muted);
@@ -486,7 +495,7 @@ const { dragRelatedClass } = useDragRelated(draggingTaak, relatedIds, taakKetenM
 }
 
 .expand-icon.open {
-  transform: rotate(45deg);
+  transform: rotate(90deg);
 }
 
 /* ---- Grid layout ---- */

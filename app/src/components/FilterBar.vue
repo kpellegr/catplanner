@@ -3,95 +3,65 @@
     <!-- Expand/collapse (provided by parent via slot) -->
     <slot name="expand"></slot>
 
-    <!-- Type filters -->
-    <div class="fb-group">
+    <!-- Type filter: segmented H / R -->
+    <div class="fb-segmented">
       <button
-        class="fb-btn"
         :class="{ on: filters.huistaken }"
         @click="filters.huistaken = !filters.huistaken"
         title="Huistaken / zelfstandig"
-      >
-        <span class="fb-swatch" style="background: #64748b"></span>
-        <span class="fb-label">H</span>
-      </button>
+      >H</button>
       <button
-        class="fb-btn"
         :class="{ on: filters.rooster }"
         @click="filters.rooster = !filters.rooster"
         title="Roostertaken"
-      >
-        <span class="fb-swatch" style="background: #6366f1"></span>
-        <span class="fb-label">R</span>
-      </button>
+      >R</button>
     </div>
 
-    <span class="fb-sep"></span>
+    <!-- Ongepland chip -->
+    <button
+      class="fb-chip fb-chip-ongepland"
+      :class="{ on: filters.alleenOngepland }"
+      @click="toggleChip('alleenOngepland')"
+      title="Toon alleen ongeplande taken"
+    >
+      <Icon icon="mdi:calendar-remove-outline" width="13" height="13" />
+      <span class="fb-chip-count">{{ ongeplandCount }}</span>
+      <span class="fb-chip-label">ongepland</span>
+    </button>
 
-    <!-- Status filters -->
-    <div class="fb-group">
-      <button
-        class="fb-btn"
-        :class="{ on: filters.ongepland }"
-        @click="filters.ongepland = !filters.ongepland"
-        title="Ongepland"
-      >
-        <Icon icon="mdi:circle-outline" width="14" height="14" />
-      </button>
-      <button
-        class="fb-btn"
-        :class="{ on: filters.gepland }"
-        @click="filters.gepland = !filters.gepland"
-        title="Gepland"
-      >
-        <Icon icon="mdi:calendar-check-outline" width="14" height="14" />
-      </button>
-      <button
-        class="fb-btn"
-        :class="{ on: filters.klaar }"
-        @click="filters.klaar = !filters.klaar"
-        title="Klaar"
-      >
-        <Icon icon="mdi:check-circle-outline" width="14" height="14" />
-      </button>
-      <button
-        class="fb-btn"
-        :class="{ on: filters.ingediend }"
-        @click="filters.ingediend = !filters.ingediend"
-        title="Ingediend"
-      >
-        <Icon icon="mdi:send-check-outline" width="14" height="14" />
-      </button>
-    </div>
+    <!-- Warning chips -->
+    <button
+      class="fb-chip fb-chip-overdue"
+      :class="{ on: filters.overdue }"
+      @click="toggleChip('overdue')"
+      title="Overdue (niet klaar, gepland in verleden)"
+    >
+      <Icon icon="mdi:clock-alert-outline" width="13" height="13" />
+      <span class="fb-chip-count">{{ overdueCount }}</span>
+      <span class="fb-chip-label">overdue</span>
+    </button>
 
-    <span class="fb-sep"></span>
+    <button
+      class="fb-chip fb-chip-intedienen"
+      :class="{ on: filters.inTeDienen }"
+      @click="toggleChip('inTeDienen')"
+      title="In te dienen (klaar maar niet ingediend)"
+    >
+      <Icon icon="mdi:file-alert-outline" width="13" height="13" />
+      <span class="fb-chip-count">{{ inTeDienenCount }}</span>
+      <span class="fb-chip-label">in te dienen</span>
+    </button>
 
-    <!-- Warning filters (drill-down) -->
-    <div class="fb-group">
-      <button
-        class="fb-btn fb-warn"
-        :class="{ on: filters.overdue }"
-        @click="toggleWarning('overdue')"
-        title="Overdue (niet klaar, gepland in verleden)"
-      >
-        <Icon icon="mdi:clock-alert-outline" width="14" height="14" />
-      </button>
-      <button
-        class="fb-btn fb-warn"
-        :class="{ on: filters.inTeDienen }"
-        @click="toggleWarning('inTeDienen')"
-        title="In te dienen (klaar maar niet ingediend)"
-      >
-        <Icon icon="mdi:file-alert-outline" width="14" height="14" />
-      </button>
-      <button
-        class="fb-btn fb-warn"
-        :class="{ on: filters.conflict }"
-        @click="toggleWarning('conflict')"
-        title="Volgtijdelijkheidsconflict"
-      >
-        <Icon icon="mdi:swap-horizontal" width="14" height="14" />
-      </button>
-    </div>
+    <button
+      class="fb-chip fb-chip-conflict"
+      :class="{ on: filters.conflict }"
+      @click="toggleChip('conflict')"
+      title="Volgtijdelijkheidsconflict"
+    >
+      <Icon icon="mdi:swap-horizontal" width="13" height="13" />
+      <span class="fb-chip-count">{{ conflictCount }}</span>
+      <span class="fb-chip-label">conflict</span>
+    </button>
 
     <!-- Extra actions (provided by parent via slot) -->
     <slot name="actions"></slot>
@@ -102,11 +72,19 @@
 import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 
+defineProps({
+  ongeplandCount: { type: Number, default: 0 },
+  overdueCount: { type: Number, default: 0 },
+  inTeDienenCount: { type: Number, default: 0 },
+  conflictCount: { type: Number, default: 0 },
+});
+
 const { filters } = usePlanner();
 
-function toggleWarning(key) {
+function toggleChip(key) {
   const wasOn = filters[key];
   // Radio: turn all off, then toggle the clicked one
+  filters.alleenOngepland = false;
   filters.overdue = false;
   filters.inTeDienen = false;
   filters.conflict = false;
@@ -123,82 +101,123 @@ function toggleWarning(key) {
   margin-bottom: 0.75rem;
 }
 
-.fb-group {
+/* ---- Segmented H/R toggle ---- */
+.fb-segmented {
+  display: flex;
+  border: 1.5px solid var(--clr-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.fb-segmented button {
   display: flex;
   align-items: center;
-  gap: 2px;
-}
-
-.fb-btn {
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  gap: 0.2rem;
   width: 2rem;
   height: 2rem;
   padding: 0;
-  border: 1.5px solid var(--clr-border);
-  border-radius: 6px;
+  border: none;
   background: white;
   cursor: pointer;
   color: var(--clr-text-muted);
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 800;
   transition: all 0.15s;
 }
-
-.fb-btn:hover {
-  border-color: var(--clr-accent);
+.fb-segmented button + button {
+  border-left: 1.5px solid var(--clr-border);
+}
+.fb-segmented button.on {
+  background: var(--clr-accent);
+  color: white;
+}
+.fb-segmented button:hover:not(.on) {
+  background: var(--clr-accent-light);
   color: var(--clr-accent);
 }
 
-/* ON state: inverted */
-.fb-btn.on {
-  background: var(--clr-accent);
-  border-color: var(--clr-accent);
+/* ---- Filter chips ---- */
+.fb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border: 1.5px solid var(--clr-border);
+  border-radius: 999px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.fb-chip-count {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.fb-chip-label {
+  font-weight: 600;
+}
+
+/* ---- Ongepland = accent/indigo ---- */
+.fb-chip-ongepland {
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #4f46e5;
+}
+.fb-chip-ongepland:hover {
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+.fb-chip-ongepland.on {
+  background: #6366f1;
+  border-color: #6366f1;
   color: white;
 }
 
-.fb-btn.on:hover {
-  background: var(--clr-accent);
-  opacity: 0.85;
+/* ---- Overdue = orange ---- */
+.fb-chip-overdue {
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #b45309;
+}
+.fb-chip-overdue:hover {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+.fb-chip-overdue.on {
+  background: #f59e0b;
+  border-color: #f59e0b;
+  color: white;
 }
 
-/* Warning buttons: red inverted when active */
-.fb-btn.fb-warn.on {
+/* ---- In te dienen = red ---- */
+.fb-chip-intedienen {
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #b91c1c;
+}
+.fb-chip-intedienen:hover {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+.fb-chip-intedienen.on {
   background: #ef4444;
   border-color: #ef4444;
   color: white;
 }
 
-.fb-btn.fb-warn:hover {
-  border-color: #ef4444;
-  color: #ef4444;
+/* ---- Conflict = purple ---- */
+.fb-chip-conflict {
+  border-color: rgba(139, 92, 246, 0.3);
+  color: #6d28d9;
 }
-
-.fb-btn.fb-warn.on:hover {
-  background: #ef4444;
+.fb-chip-conflict:hover {
+  border-color: #8b5cf6;
+  background: #f5f3ff;
+}
+.fb-chip-conflict.on {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
   color: white;
-}
-
-.fb-swatch {
-  width: 3px;
-  height: 14px;
-  border-radius: 1px;
-  flex-shrink: 0;
-}
-.fb-btn.on .fb-swatch {
-  background: rgba(255,255,255,0.7) !important;
-}
-
-.fb-label {
-  line-height: 1;
-}
-
-.fb-sep {
-  width: 1px;
-  height: 18px;
-  background: var(--clr-border);
-  flex-shrink: 0;
 }
 </style>

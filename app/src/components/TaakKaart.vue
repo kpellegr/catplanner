@@ -9,6 +9,7 @@
         'is-rooster': taak.tijd?.type === 'rooster' && !isRoosterLes,
         'is-klaar': taak.voortgang?.status === 'klaar' || taak.voortgang?.status === 'ingediend',
         'is-overdue': isOverdue,
+        'is-in-te-dienen': taak.voortgang?.status === 'klaar',
         'is-selected': isSelected,
         dragging: isDragging,
         compact: compact,
@@ -120,8 +121,9 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
   z-index: 1;
 }
 
-.kanban-kaart.is-overdue { border-left-color: #ef4444 !important; }
-.kanban-kaart.is-overdue .kaart-gepland { color: #ef4444; font-weight: 700; }
+.kanban-kaart.is-overdue { border-left-color: #f59e0b !important; }
+.kanban-kaart.is-overdue .kaart-gepland { color: #f59e0b; font-weight: 700; }
+.kanban-kaart.is-in-te-dienen { border-left-color: #ef4444 !important; }
 
 /* Type border colors: rooster=indigo, huistaak/Z=slate */
 .kanban-kaart.is-rooster-les { border-left-color: #6366f1; }

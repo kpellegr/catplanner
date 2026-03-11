@@ -1,10 +1,10 @@
 <template>
   <div class="weekplan">
     <!-- Toolbar: FilterBar + vak filter + action buttons -->
-    <FilterBar>
+    <FilterBar :ongepland-count="ongeplandCount" :overdue-count="overdueCount" :in-te-dienen-count="inTeDienenCount" :conflict-count="conflictCount">
       <template #expand>
         <button class="btn-expand" @click="poolRef?.toggleAlles()" :title="poolRef?.allesOpen ? 'Alles dichtklappen' : 'Alles openklappen'">
-          <span class="expand-icon" :class="{ open: poolRef?.allesOpen }">+</span>
+          <span class="expand-icon" :class="{ open: poolRef?.allesOpen }">&#9656;</span>
         </button>
       </template>
       <template #actions>
@@ -26,7 +26,7 @@
     <!-- Connected header bar: pool header + gutter + day headers -->
     <div class="wp-connected-header">
       <div class="wp-pool-header" :style="{ width: poolRef?.currentWidth + 'px' }">
-        <span class="wp-pool-count">{{ gefilterdeOngeplande.length }}/{{ alleTaken.length }}</span>
+        <span class="wp-pool-count"><strong>{{ ongeplandCount }}</strong> ongepland <span class="wp-pool-total">/ {{ alleTaken.length }}</span></span>
         <span class="wp-pool-minuten">{{ poolRef?.totalMinuten ?? 0 }}'</span>
       </div>
       <div
@@ -170,6 +170,7 @@
                       'is-huistaak': placed.taak.tijd?.type !== 'rooster',
                       'is-klaar': placed.taak.voortgang.status === 'klaar' || placed.taak.voortgang.status === 'ingediend',
                       'is-overdue': isOverdue(placed.taak),
+                      'is-in-te-dienen': placed.taak.voortgang.status === 'klaar',
                       'is-selected': selectedTaakId === placed.taak.id,
                       dragging: draggingTaak?.id === placed.taak.id,
                     }
@@ -191,7 +192,6 @@
                           :title="placed.taak.voortgang.status === 'klaar' ? 'Markeer als open' : 'Markeer als klaar'"
                           @click.stop="toggleKlaar(placed.taak)"
                         >✓</button>
-                        <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" :title="overdueTooltip(placed.taak)">!</span>
                         <span v-if="placed.taak.code" class="code">{{ placed.taak.code }}</span>
                         <span v-if="taakKeten(placed.taak)" class="kaart-keten" :title="ketenTooltipWP(placed.taak)">
                           <template v-for="(stap, si) in taakKeten(placed.taak)" :key="stap.id">
@@ -212,7 +212,6 @@
                   <!-- Compact card in week view / side columns -->
                   <template v-else>
                     <div class="tl-compact-row">
-                      <span v-if="isOverdue(placed.taak)" class="tl-overdue-icon" :title="overdueTooltip(placed.taak)">!</span>
                       <span class="tl-code">{{ placed.taak.code || kortVak(placed.taak.vak) }}</span>
                       <span v-if="taakKeten(placed.taak)" class="kaart-keten tl-keten" :title="ketenTooltipWP(placed.taak)">
                         <template v-for="(stap, si) in taakKeten(placed.taak)" :key="stap.id">
@@ -302,6 +301,9 @@ function passeertFilters(taak) {
   if (isRooster && !filters.rooster) return false;
   if (!isRooster && !filters.huistaken) return false;
 
+  // Ongepland drill-down
+  if (filters.alleenOngepland && taak.geplandOp) return false;
+
   // Status filter
   const status = taak.voortgang?.status || 'open';
   const gepland = !!taak.geplandOp;
@@ -362,13 +364,6 @@ function geplandLabel(taak) {
   const dag = dagKort[taak.geplandOp] || taak.geplandOp;
   if (taak.geplandBlok != null) return `${dag} ${blokToTijd(taak.geplandBlok)}`;
   return dag;
-}
-
-function overdueTooltip(taak) {
-  if (!isOverdue(taak)) return '';
-  const dag = dagLang[taak.geplandOp] || taak.geplandOp;
-  const tijd = taak.geplandBlok != null ? ` om ${blokToTijd(taak.geplandBlok)}` : '';
-  return `Achterstand: was gepland op ${dag}${tijd}`;
 }
 
 function taakBlokken(taak) {
@@ -640,6 +635,10 @@ function geplandeTaken(dag) {
 
 const alleOngeplande = computed(() => alleTaken.value);
 
+// Warning counts for FilterBar badges
+const overdueCount = computed(() => alleTaken.value.filter(t => isOverdue(t)).length);
+const inTeDienenCount = computed(() => alleTaken.value.filter(t => t.voortgang?.status === 'klaar').length);
+const conflictCount = computed(() => alleTaken.value.filter(t => ketenStapKleur(t) === 'keten-rood').length);
 
 // Map rooster slot titles to task vak/hoofdgroep keywords
 // Equivalenten:
@@ -778,6 +777,8 @@ const gefilterdeOngeplande = computed(() => {
     return (a.code || '').localeCompare(b.code || '');
   });
 });
+
+const ongeplandCount = computed(() => gefilterdeOngeplande.value.filter(t => !t.geplandOp).length);
 
 const gefilterdeOngeplandMinuten = computed(() => {
   return gefilterdeOngeplande.value.reduce((sum, t) => (t.tijd?.type === 'minuten' ? sum + t.tijd.minuten : sum), 0);
@@ -1222,9 +1223,9 @@ function isOverdue(taak) {
 }
 .btn-expand:hover { border-color: var(--clr-accent); background: var(--clr-accent-light); }
 .expand-icon {
-  font-size: 1.1rem; font-weight: 700; line-height: 1; color: var(--clr-text-muted); transition: transform 0.2s;
+  font-size: 0.85rem; font-weight: 700; line-height: 1; color: var(--clr-text-muted); transition: transform 0.2s;
 }
-.expand-icon.open { transform: rotate(45deg); }
+.expand-icon.open { transform: rotate(90deg); }
 
 
 /* ---- Connected header bar ---- */
@@ -1246,9 +1247,16 @@ function isOverdue(taak) {
   font-size: 0.9rem;
 }
 .wp-pool-count {
-  font-size: 0.75rem;
-  color: var(--clr-text-muted);
+  font-size: 0.7rem;
+  color: var(--clr-text);
   font-variant-numeric: tabular-nums;
+}
+.wp-pool-count strong {
+  font-weight: 800;
+}
+.wp-pool-total {
+  color: var(--clr-text-muted);
+  font-weight: 400;
 }
 .wp-pool-minuten {
   margin-left: auto;
@@ -1505,8 +1513,12 @@ function isOverdue(taak) {
 .wp-tl-taak.is-klaar .tl-code,
 .wp-tl-taak.is-klaar .tl-duur { text-decoration: line-through; text-decoration-color: inherit; }
 
-/* Overdue: red border only (subtle, no background/pulse) */
+/* Overdue: orange border */
 .wp-tl-taak.is-overdue {
+  border-left-color: #f59e0b !important;
+}
+/* In te dienen (klaar, niet ingediend): red border */
+.wp-tl-taak.is-in-te-dienen {
   border-left-color: #ef4444 !important;
 }
 
@@ -1726,17 +1738,6 @@ function isOverdue(taak) {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.tl-overdue-icon {
-  font-size: 0.65rem;
-  font-weight: 900;
-  color: #ef4444;
-  background: #fef2f2;
-  border-radius: 50%;
-  width: 14px; height: 14px;
-  display: inline-flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-
 /* ---- Drag-dimming: focus on dragged task + chain ---- */
 .wp-layout.is-dragging-mode .wp-tl-taak {
   opacity: 0.25;

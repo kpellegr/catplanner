@@ -46,6 +46,8 @@ const filters = reactive({
   gepland: true,
   klaar: true,
   ingediend: true,
+  // Drill-down: show only unplanned tasks
+  alleenOngepland: false,
   // Warnings (off = show all, on = drill-down to only matching)
   overdue: false,
   inTeDienen: false,

@@ -8,25 +8,27 @@
           Afdrukken
         </button>
       </div>
-      <div class="sw-filters">
+      <div class="sw-chips">
         <button
-          class="filter-btn"
-          :class="{ active: filterMode === 'alle' }"
-          @click="filterMode = 'alle'"
-          title="Alle taken (inclusief uitgesloten)"
-        ><Icon icon="mdi:format-list-bulleted" width="14" height="14" /> Alle</button>
+          class="sw-chip sw-chip-uitgesloten"
+          :class="{ on: toonUitgesloten }"
+          @click="toonUitgesloten = !toonUitgesloten"
+          title="Toon ook uitgesloten taken (profiel/handmatig)"
+        >
+          <Icon icon="mdi:eye-off-outline" width="13" height="13" />
+          <span class="sw-chip-count">{{ uitgeslotenCount }}</span>
+          <span class="sw-chip-label">uitgesloten</span>
+        </button>
         <button
-          class="filter-btn"
-          :class="{ active: filterMode === 'relevant' }"
-          @click="filterMode = 'relevant'"
-          title="Alleen relevante taken"
-        ><Icon icon="mdi:filter-outline" width="14" height="14" /> Relevant</button>
-        <button
-          class="filter-btn"
-          :class="{ active: filterMode === 'open' }"
-          @click="filterMode = 'open'"
-          title="Alleen niet-afgeronde taken"
-        ><Icon icon="mdi:clipboard-text-clock-outline" width="14" height="14" /> Niet afgerond</button>
+          class="sw-chip sw-chip-afgerond"
+          :class="{ on: verbergAfgerond }"
+          @click="verbergAfgerond = !verbergAfgerond"
+          title="Verberg afgeronde taken"
+        >
+          <Icon icon="mdi:check-circle-outline" width="13" height="13" />
+          <span class="sw-chip-count">{{ afgerondCount }}</span>
+          <span class="sw-chip-label">afgerond</span>
+        </button>
       </div>
       <p class="sw-hint">
         Originele studiewijzer. Uitgesloten taken (profiel/handmatig) zijn doorgestreept.
@@ -185,30 +187,57 @@ onMounted(() => {
   }
 });
 
-// Filter mode: 'alle' | 'relevant' | 'open'
-const filterMode = ref('relevant');
+// Filter toggles
+const toonUitgesloten = ref(false);
+const verbergAfgerond = ref(false);
 
 function isTaakZichtbaar(taak, section, week) {
-  if (filterMode.value === 'alle') return true;
   const actief = isTaakActief(taak, section, week);
-  if (!actief) return false;
-  if (filterMode.value === 'open') {
+  if (!actief && !toonUitgesloten.value) return false;
+  if (verbergAfgerond.value && actief) {
     const key = rawTaakKey(taak, week.metadata);
     const status = state.voortgang[key]?.status || 'open';
-    return status !== 'klaar' && status !== 'ingediend';
+    if (status === 'klaar' || status === 'ingediend') return false;
   }
   return true;
 }
 
 function isSectionZichtbaar(section, week) {
-  if (filterMode.value === 'alle') return true;
-  if (!isVakActief(section.vak)) return false;
+  if (!toonUitgesloten.value && !isVakActief(section.vak)) return false;
   return section.taken.some(t => isTaakZichtbaar(t, section, week));
 }
 
 function isGroepZichtbaar(groep, week) {
   return groep.sections.some(s => isSectionZichtbaar(s, week));
 }
+
+// Counts for chips
+const uitgeslotenCount = computed(() => {
+  let count = 0;
+  for (const week of bronWeken.value) {
+    for (const section of week.sections) {
+      for (const taak of section.taken) {
+        if (!isTaakActief(taak, section, week)) count++;
+      }
+    }
+  }
+  return count;
+});
+
+const afgerondCount = computed(() => {
+  let count = 0;
+  for (const week of bronWeken.value) {
+    for (const section of week.sections) {
+      for (const taak of section.taken) {
+        if (!isTaakActief(taak, section, week)) continue;
+        const key = rawTaakKey(taak, week.metadata);
+        const status = state.voortgang[key]?.status || 'open';
+        if (status === 'klaar' || status === 'ingediend') count++;
+      }
+    }
+  }
+  return count;
+});
 
 // Use raw studiewijzer if available, fall back to filtered weken
 const bronWeken = computed(() => {
@@ -436,35 +465,58 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
   background: var(--clr-accent-light);
 }
 
-/* Filter buttons */
-.sw-filters {
+/* Filter chips */
+.sw-chips {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.4rem;
   margin-top: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.filter-btn {
+.sw-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-  background: var(--clr-surface);
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border: 1.5px solid var(--clr-border);
+  border-radius: 999px;
+  background: white;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--clr-text-muted);
   transition: all 0.15s;
+  white-space: nowrap;
+}
+.sw-chip-count { font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Uitgesloten = slate */
+.sw-chip-uitgesloten {
+  border-color: rgba(100, 116, 139, 0.3);
+  color: #475569;
+}
+.sw-chip-uitgesloten:hover {
+  border-color: #64748b;
+  background: #f8fafc;
+}
+.sw-chip-uitgesloten.on {
+  background: #64748b;
+  border-color: #64748b;
+  color: white;
 }
 
-.filter-btn:hover {
-  border-color: var(--clr-accent);
-  color: var(--clr-accent);
+/* Afgerond = green */
+.sw-chip-afgerond {
+  border-color: rgba(5, 150, 105, 0.3);
+  color: #047857;
 }
-
-.filter-btn.active {
-  background: var(--clr-accent);
-  border-color: var(--clr-accent);
+.sw-chip-afgerond:hover {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+.sw-chip-afgerond.on {
+  background: #059669;
+  border-color: #059669;
   color: white;
 }
 
