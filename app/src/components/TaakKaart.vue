@@ -9,6 +9,7 @@
         'is-rooster': taak.tijd?.type === 'rooster' && !isRoosterLes,
         'is-klaar': taak.voortgang?.status === 'klaar' || taak.voortgang?.status === 'ingediend',
         'is-overdue': isOverdue,
+        'is-selected': isSelected,
         dragging: isDragging,
         compact: compact,
         expanded: compact && isExpanded,
@@ -87,6 +88,7 @@ const props = defineProps({
   geplandLabel: { type: String, default: '' },
   isOverdue: { type: Boolean, default: false },
   isRoosterLes: { type: Boolean, default: false },
+  isSelected: { type: Boolean, default: false },
 });
 
 defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
@@ -110,6 +112,13 @@ defineEmits(['dragstart', 'dragend', 'click', 'dblclick', 'toggle-klaar']);
 .kanban-kaart.is-klaar .kaart-tekst,
 .kanban-kaart.is-klaar .code,
 .kanban-kaart.is-klaar .kaart-compact-row .code { text-decoration: line-through; }
+
+.kanban-kaart.is-selected {
+  outline: 2px solid var(--clr-accent, #6366f1);
+  outline-offset: -1px;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  z-index: 1;
+}
 
 .kanban-kaart.is-overdue { border-left-color: #ef4444 !important; background: #fef2f2; }
 .kanban-kaart.is-overdue .kaart-gepland { color: #ef4444; font-weight: 700; }

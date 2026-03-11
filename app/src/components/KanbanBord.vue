@@ -99,7 +99,8 @@
             :is-overdue="isOverdue(taak)"
             @dragstart="(e) => !isReadOnly && dragStart(e, taak)"
             @dragend="dragEnd"
-            @click="kolom.compact ? openDetail(taak) : null"
+            :is-selected="selectedTaakId === taak.id"
+            @click="onKaartClick(taak, kolom)"
             @dblclick="!isReadOnly && openEdit(taak)"
             @toggle-klaar="toggleKlaar"
           />
@@ -164,13 +165,22 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onMounted, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { hoofdgroepClass, formatDuur, duurTooltip, flagTooltip, flagTooltips, useVakGroepen, useVolgordeKetens, useDragRelated } from '../composables/useTakenLogic.js';
 import TaakKaart from './TaakKaart.vue';
 
-const { alleTaken, updateVoortgang, editTaak, isReadOnly } = usePlanner();
+const { alleTaken, updateVoortgang, editTaak, isReadOnly, selectedTaakId, selectTaak } = usePlanner();
+
+onMounted(() => {
+  if (selectedTaakId.value) {
+    nextTick(() => {
+      const el = document.querySelector('.kanban-kaart.is-selected');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+});
 
 // ---- Date awareness ----
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
@@ -276,6 +286,11 @@ function vakKolomTaken(vakNaam, status) {
 
 function toggleKaart(id) {
   expandedKaarten[id] = !expandedKaarten[id];
+}
+
+function onKaartClick(taak, kolom) {
+  selectTaak(taak.id);
+  if (kolom.compact) openDetail(taak);
 }
 
 function openDetail(taak) {

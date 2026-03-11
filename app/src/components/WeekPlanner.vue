@@ -98,6 +98,7 @@
         @dragenter="dragOverTarget = '__pool__'"
         @dragleave="onDragLeave($event, '__pool__')"
         @drop="onDropPool($event)"
+        @card-click="selectTaak"
         @card-dragstart="(e, taak) => onDragStart(e, taak)"
         @card-dragend="onDragEnd"
         @update:filter="onFilterUpdate"
@@ -269,7 +270,7 @@ import { usePlanner } from '../stores/planner.js';
 import { hoofdgroepClass, formatDuur as _formatDuur, duurTooltip as _duurTooltip, flagTooltips, useVolgordeKetens, useDragRelated } from '../composables/useTakenLogic.js';
 import TakenPool from './TakenPool.vue';
 
-const { state, alleTaken, planTaak, updateVoortgang, isReadOnly, wpViewMode, wpFocusDag } = usePlanner();
+const { state, alleTaken, planTaak, updateVoortgang, isReadOnly, wpViewMode, wpFocusDag, selectedTaakId, selectTaak: globalSelectTaak } = usePlanner();
 
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
@@ -315,10 +316,9 @@ const dragOverTarget = ref(null);
 const draggingTaak = ref(null);
 const dropBlok = ref(null);
 const sidebarFilter = ref('rooster');
-const selectedVak = ref(null);
+const selectedVak = ref(null);       // rooster title filter (from band click)
+const selectedVakDirect = ref(null);  // direct vak name filter (from task click)
 const sidebarShowAll = ref(false);
-const selectedTaakId = ref(null);
-
 // ---- Helpers ----
 
 
@@ -769,7 +769,9 @@ function matchingRoosterTitels(taak) {
 
 const gefilterdeOngeplande = computed(() => {
   let taken = alleOngeplande.value;
-  if (selectedVak.value) {
+  if (selectedVakDirect.value) {
+    taken = taken.filter(t => t.vak === selectedVakDirect.value);
+  } else if (selectedVak.value) {
     taken = taken.filter(t => matchesRoosterVak(t, selectedVak.value));
   } else if (sidebarFilter.value === 'rooster') {
     taken = taken.filter(t => t.tijd?.type === 'rooster');
@@ -788,29 +790,33 @@ const gefilterdeOngeplandMinuten = computed(() => {
 });
 
 // ---- Sidebar (handled by TakenPool component) ----
-function toggleFilter(f) { sidebarFilter.value = sidebarFilter.value === f ? null : f; selectedVak.value = null; selectedTaakId.value = null; }
-function onFilterUpdate(f) { sidebarFilter.value = f; selectedVak.value = null; selectedTaakId.value = null; }
-function toggleVakFilter(titel) { selectedVak.value = selectedVak.value === titel ? null : titel; selectedTaakId.value = null; }
+function toggleFilter(f) { sidebarFilter.value = sidebarFilter.value === f ? null : f; selectedVak.value = null; selectedVakDirect.value = null; globalSelectTaak(null); }
+function onFilterUpdate(f) { sidebarFilter.value = f; selectedVak.value = null; selectedVakDirect.value = null; globalSelectTaak(null); }
+function toggleVakFilter(titel) { selectedVak.value = selectedVak.value === titel ? null : titel; selectedVakDirect.value = null; globalSelectTaak(null); }
 
 function selectTaak(taak) {
   // If already selected, deselect
   if (selectedTaakId.value === taak.id) {
-    selectedTaakId.value = null;
+    globalSelectTaak(null);
     selectedVak.value = null;
+    selectedVakDirect.value = null;
     return;
   }
   // Switch to "Alle" so planned tasks are visible in sidebar
   sidebarShowAll.value = true;
-  selectedVak.value = taak.vak;
-  selectedTaakId.value = taak.id;
+  selectedVak.value = null;
+  selectedVakDirect.value = taak.vak;
+  globalSelectTaak(taak.id);
   // Ensure the vak group is open
   if (poolRef.value?.openVakken && poolRef.value.openVakken[taak.vak] === false) {
     poolRef.value.openVakken[taak.vak] = true;
   }
-  // Scroll to the task in the sidebar after DOM update
+  // Scroll to the task in sidebar + timeline after DOM update
   nextTick(() => {
-    const el = document.querySelector(`.taken-pool [data-taak-id="${taak.id}"]`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const poolEl = document.querySelector(`.taken-pool [data-taak-id="${taak.id}"]`);
+    if (poolEl) poolEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const tlEl = document.querySelector(`.wp-tl-taak.is-selected`);
+    if (tlEl) tlEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 }
 
@@ -1375,7 +1381,7 @@ function isOverdue(taak) {
   overflow: hidden;
   max-height: calc(100vh - 11rem);
 }
-.wp-main { flex: 1; min-width: 0; overflow: hidden; }
+.wp-main { flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
 
 /* Day nav */
 .wp-nav-btn {
@@ -1387,7 +1393,7 @@ function isOverdue(taak) {
 .wp-nav-btn:hover { border-color: var(--clr-accent); color: var(--clr-accent); background: var(--clr-accent-light); }
 
 /* ---- Timeline (no own border — part of connected layout) ---- */
-.wp-timeline-wrap { background: var(--clr-surface); overflow: hidden; }
+.wp-timeline-wrap { background: var(--clr-surface); overflow: hidden; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 
 .wp-col-header {
@@ -1409,6 +1415,8 @@ function isOverdue(taak) {
 .wp-timeline-row {
   display: flex;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 

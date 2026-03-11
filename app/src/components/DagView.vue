@@ -36,6 +36,8 @@
         :key="taak.id"
         :taak="taak"
         :planbaar="true"
+        :is-selected="selectedTaakId === taak.id"
+        @click="selectTaak(taak.id)"
         @status="(s) => updateVoortgang(taak.id, { status: s })"
         @werk="(m) => addMinuten(taak, m)"
         @unplan="planTaak(taak.id, null)"
@@ -50,7 +52,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, nextTick } from 'vue';
 import { usePlanner } from '../stores/planner.js';
 import TaakKaart from './TaakKaart.vue';
 
@@ -61,7 +63,16 @@ const props = defineProps({
   taken: Array,
 });
 
-const { updateVoortgang, planTaak, getLesBlokken, updateLesBlokken } = usePlanner();
+const { updateVoortgang, planTaak, getLesBlokken, updateLesBlokken, selectedTaakId, selectTaak } = usePlanner();
+
+onMounted(() => {
+  if (selectedTaakId.value) {
+    nextTick(() => {
+      const el = document.querySelector('.kanban-kaart.is-selected');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+});
 
 const dagOver = { ma: 'Maandag', di: 'Dinsdag', wo: 'Woensdag', do: 'Donderdag', vr: 'Vrijdag' };
 const dagNaam = computed(() => dagOver[props.dag] || props.dag);

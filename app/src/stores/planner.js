@@ -24,6 +24,18 @@ const state = reactive({
 let unsubscribe = null;
 let savingKeys = new Set(); // prevent echo from realtime
 
+// Global task selection (not persisted, survives view switches)
+const selectedTaakId = ref(null);
+
+function selectTaak(id) {
+  if (id === null) { selectedTaakId.value = null; return; }
+  selectedTaakId.value = selectedTaakId.value === id ? null : id;
+}
+
+function deselectTaak() {
+  selectedTaakId.value = null;
+}
+
 // ---- Computed ----
 
 const STATUSSEN = ['open', 'bezig', 'klaar', 'ingediend'];
@@ -635,5 +647,8 @@ export function usePlanner() {
     BEKENDE_WILDCARDS,
     verwijderWeek,
     resetAlles,
+    selectedTaakId,
+    selectTaak,
+    deselectTaak,
   };
 }

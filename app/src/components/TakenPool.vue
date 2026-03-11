@@ -60,6 +60,7 @@
             :is-rooster-les="isRoosterLesFn(taak)"
             @dragstart="$emit('card-dragstart', $event, taak)"
             @dragend="$emit('card-dragend', $event)"
+            @click="$emit('card-click', taak)"
             @dblclick="$emit('card-dblclick', taak)"
             @toggle-klaar="$emit('card-toggle-klaar', taak)"
           />

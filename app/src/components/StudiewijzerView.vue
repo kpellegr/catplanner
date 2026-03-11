@@ -13,17 +13,20 @@
           class="filter-btn"
           :class="{ active: filterMode === 'alle' }"
           @click="filterMode = 'alle'"
-        >Alle</button>
+          title="Alle taken (inclusief uitgesloten)"
+        ><Icon icon="mdi:format-list-bulleted" width="14" height="14" /> Alle</button>
         <button
           class="filter-btn"
           :class="{ active: filterMode === 'relevant' }"
           @click="filterMode = 'relevant'"
-        >Relevant</button>
+          title="Alleen relevante taken"
+        ><Icon icon="mdi:filter-outline" width="14" height="14" /> Relevant</button>
         <button
           class="filter-btn"
           :class="{ active: filterMode === 'open' }"
           @click="filterMode = 'open'"
-        >Niet afgerond</button>
+          title="Alleen niet-afgeronde taken"
+        ><Icon icon="mdi:clipboard-text-clock-outline" width="14" height="14" /> Niet afgerond</button>
       </div>
       <p class="sw-hint">
         Originele studiewijzer. Uitgesloten taken (profiel/handmatig) zijn doorgestreept.
@@ -113,8 +116,10 @@
                 :key="rawTaakKey(taak, week.metadata)"
                 :class="{
                   'taak-uitgesloten': !isTaakActief(taak, section, week),
-                  'taak-klaar': isTaakKlaar(taak, week)
+                  'taak-klaar': isTaakKlaar(taak, week),
+                  'taak-selected': selectedTaakId === rawTaakKey(taak, week.metadata)
                 }"
+                @click="selectTaak(rawTaakKey(taak, week.metadata))"
               >
                 <td class="col-incl">
                   <button
@@ -164,12 +169,21 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { filterVoorProfiel } from '../lib/parser.js';
 
-const { state, saveConfiguratie, isReadOnly, wekenTaakIds, taakId, includeTaak, excludeTaak } = usePlanner();
+const { state, saveConfiguratie, isReadOnly, wekenTaakIds, taakId, includeTaak, excludeTaak, selectedTaakId, selectTaak } = usePlanner();
+
+onMounted(() => {
+  if (selectedTaakId.value) {
+    nextTick(() => {
+      const el = document.querySelector('tr.taak-selected');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+});
 
 // Filter mode: 'alle' | 'relevant' | 'open'
 const filterMode = ref('relevant');
@@ -430,6 +444,9 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 }
 
 .filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--clr-border);
   border-radius: var(--radius);
@@ -678,6 +695,20 @@ function flagTip(f) { return FLAG_TIPS[f] || f; }
 
 .incl-ja-static { color: #10b981; font-weight: 700; font-size: 0.75rem; }
 .incl-nee-static { color: #d1d5db; font-weight: 700; font-size: 0.75rem; }
+
+/* Geselecteerde taak */
+.taak-selected td {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.taak-selected {
+  outline: 2px solid var(--clr-accent, #6366f1);
+  outline-offset: -2px;
+}
+
+.sw-tabel tbody tr {
+  cursor: pointer;
+}
 
 /* Afgeronde taak */
 .taak-klaar td {
