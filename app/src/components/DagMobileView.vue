@@ -255,33 +255,34 @@ function toggleKlaar(taak) {
   margin: 0 auto;
 }
 
-/* Dag navigatie */
+/* Dag navigatie — typographic, minimal */
 .dm-nav {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 0;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--clr-border);
+  margin-bottom: 0.35rem;
 }
 .dm-nav-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid var(--clr-border);
+  width: 2rem;
+  height: 2rem;
+  border: none;
   border-radius: var(--radius);
-  background: var(--clr-surface);
+  background: transparent;
   color: var(--clr-text-muted);
   cursor: pointer;
   flex-shrink: 0;
 }
 .dm-nav-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.2;
   cursor: default;
 }
 .dm-nav-btn:not(:disabled):hover {
   color: var(--clr-accent);
-  border-color: var(--clr-accent);
 }
 .dm-nav-center {
   flex: 1;
@@ -289,7 +290,7 @@ function toggleKlaar(taak) {
 }
 .dm-dag-naam {
   display: block;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--clr-text);
 }
@@ -305,96 +306,91 @@ function toggleKlaar(taak) {
 .dm-schedule {
   display: flex;
   flex-direction: column;
-  gap: 2px;
 }
 
-/* Rooster slot */
+/* Uur header — studiewijzer-style: uppercase, small, border-bottom */
 .dm-slot {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  margin-top: 4px;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.5rem 0 0.2rem;
+  border-bottom: 1px solid var(--clr-border);
+  margin-top: 0.25rem;
 }
 .dm-slot-les {
-  background: var(--clr-accent-light);
-}
-.dm-slot-bezet,
-.dm-slot-pauze {
-  background: var(--clr-bg);
+  border-bottom-color: var(--clr-border);
 }
 .dm-slot-tijd {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: var(--clr-text-muted);
   font-variant-numeric: tabular-nums;
   min-width: 32px;
 }
 .dm-slot-titel {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--clr-text-muted);
 }
 .dm-slot-les .dm-slot-titel {
-  color: var(--clr-accent);
+  color: var(--clr-text);
 }
 
-/* Slot vrij */
+/* Vrij slot — subtle */
 .dm-slot-vrij {
-  background: transparent;
+  border-bottom-color: rgba(0,0,0,0.04);
 }
-.dm-slot-vrij .dm-slot-titel {
+.dm-slot-vrij .dm-slot-titel::after {
+  content: '—';
   color: var(--clr-text-muted);
-  opacity: 0.4;
+  opacity: 0.25;
 }
 
-/* Taak */
+/* Taak — white card for depth against bg */
 .dm-taak {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--clr-surface);
+  gap: 1px;
+  padding: 0.4rem 0.6rem 0.4rem 0.75rem;
   border-left: 3px solid transparent;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  background: white;
+  margin: 2px 0;
 }
 .dm-taak-klaar {
-  border-left-color: #86cfac;
+  border-left-color: #10b981;
   opacity: 0.5;
 }
 .dm-taak-gemist {
-  border-left-color: #e07878;
+  border-left-color: #ef4444;
 }
 .dm-taak-rooster {
-  border-left-color: #b4a7d6;
+  border-left-color: #c4b5fd;
 }
 .dm-taak-huiswerk {
-  border-left-color: #7eb8d8;
+  border-left-color: #93c5fd;
 }
 
 .dm-taak-top {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.4rem;
 }
 .dm-taak-code {
   font-weight: 700;
-  font-size: 0.8rem;
-  color: var(--clr-accent);
-  flex-shrink: 0;
+  font-size: 0.85rem;
 }
 .dm-taak-badges {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
   flex-shrink: 0;
 }
 .dm-taak-omschrijving {
-  font-size: 0.78rem;
-  color: var(--clr-text);
+  font-size: 0.8rem;
+  color: var(--clr-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -402,23 +398,25 @@ function toggleKlaar(taak) {
 }
 .dm-taak-klaar .dm-taak-omschrijving {
   text-decoration: line-through;
+  text-decoration-color: #10b981;
 }
+
+/* Duur badge — like studiewijzer tijd */
 .dm-taak-duur {
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--clr-text-muted);
+}
+
+/* Status badge — studiewijzer-style pills */
+.dm-taak-status {
   font-size: 0.65rem;
   font-weight: 700;
-  color: var(--clr-text-muted);
-  background: var(--clr-bg);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-variant-numeric: tabular-nums;
-}
-.dm-taak-status {
-  font-size: 0.6rem;
-  font-weight: 700;
-  padding: 1px 5px;
+  padding: 0.1rem 0.4rem;
   border-radius: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.03em;
 }
 .dm-status-klaar {
   color: #059669;
@@ -437,21 +435,20 @@ function toggleKlaar(taak) {
   background: var(--clr-bg);
 }
 
-/* Ongepland sectie */
+/* Ongepland sectie — studiewijzer groep-header style */
 .dm-section {
-  margin-top: 12px;
-  padding: 12px;
-  background: var(--clr-surface);
-  border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
 }
 .dm-section-heading {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: var(--clr-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.04em;
   margin: 0;
+  padding: 0.4rem 0 0.2rem;
+  border-bottom: 1px solid var(--clr-border);
   cursor: pointer;
   user-select: none;
   display: flex;
@@ -473,9 +470,6 @@ function toggleKlaar(taak) {
 }
 .dm-chevron-open {
   transform: rotate(90deg);
-}
-.dm-section .dm-taak {
-  margin-top: 4px;
 }
 
 /* Empty */
