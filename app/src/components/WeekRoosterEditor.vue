@@ -10,8 +10,12 @@
       <label class="import-btn">
         <input type="file" accept=".md,.txt" @change="onImport" hidden />
         <Icon icon="mdi:upload-outline" width="14" height="14" />
-        Rooster importeren (.md)
+        Importeren (.md)
       </label>
+      <button v-if="heeftData" class="import-btn" @click="exportRooster">
+        <Icon icon="mdi:download-outline" width="14" height="14" />
+        Exporteren (.md)
+      </button>
     </div>
 
     <!-- Grid -->
@@ -91,15 +95,6 @@
       </div>
     </div>
 
-    <!-- Summary -->
-    <div v-if="heeftData" class="rooster-summary">
-      <div v-for="dag in dagen" :key="dag" class="sum-dag">
-        <span class="sum-label">{{ dagLabels[dag].slice(0, 2) }}</span>
-        <span class="sum-les" :title="`${dagTelling(dag, 'les')} lesuren`">{{ dagTelling(dag, 'les') }}L</span>
-        <span class="sum-bezet" :title="`${dagTelling(dag, 'bezet')} bezet`">{{ dagTelling(dag, 'bezet') }}B</span>
-        <span class="sum-vrij" :title="`${dagTelling(dag, 'vrij')} vrij`">{{ dagTelling(dag, 'vrij') }}V</span>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -238,15 +233,6 @@ function verwijderLaatsteUur() {
 
 function persist() {
   saveWeekRooster(JSON.parse(JSON.stringify(rooster.value)));
-}
-
-function dagTelling(dag, type) {
-  let count = 0;
-  const slots = rooster.value[dag] || {};
-  for (const slot of Object.values(slots)) {
-    if (slot.type === type) count++;
-  }
-  return count;
 }
 
 // ---- Drag & drop (move / copy cells) ----
@@ -398,6 +384,37 @@ function onImport(e) {
   reader.readAsText(file);
 }
 
+function exportRooster() {
+  // Determine which days have data
+  const activeDagen = dagen.filter(d => Object.keys(rooster.value[d] || {}).length > 0);
+  if (!activeDagen.length) return;
+
+  const dagH = activeDagen.map(d => dagLabels[d]);
+  const colWidth = Math.max(...dagH.map(h => h.length), 12);
+  const pad = (s) => s.padEnd(colWidth);
+
+  let md = `| Uur | ${dagH.map(h => pad(h)).join(' | ')} |\n`;
+  md += `| --- | ${dagH.map(() => '-'.repeat(colWidth)).join(' | ')} |\n`;
+
+  for (let uur = 1; uur <= aantalUren.value; uur++) {
+    const cells = activeDagen.map(d => {
+      const slot = getSlot(d, uur);
+      if (!slot) return pad('');
+      const suffix = slot.type !== 'les' ? ` [${slot.type}]` : '';
+      return pad(slot.titel + suffix);
+    });
+    md += `| ${String(uur).padStart(3)} | ${cells.join(' | ')} |\n`;
+  }
+
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'weekrooster.md';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function parseRoosterMd(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
@@ -467,8 +484,14 @@ function parseRoosterMd(text) {
       const rawCode = celText.split('\n')[0].trim();
       if (!rawCode) continue;
 
-      const { titel, type } = parseVakCode(rawCode);
-      result[dag][uur] = { titel, type };
+      // Check for [bezet] or [vrij] suffix from export
+      const typeMatch = rawCode.match(/^(.+?)\s*\[(bezet|vrij)\]\s*$/i);
+      if (typeMatch) {
+        result[dag][uur] = { titel: typeMatch[1].trim(), type: typeMatch[2].toLowerCase() };
+      } else {
+        const { titel, type } = parseVakCode(rawCode);
+        result[dag][uur] = { titel, type };
+      }
     }
   }
 
@@ -843,38 +866,6 @@ function parseRoosterMd(text) {
   border-color: #ef4444;
   background: #fef2f2;
 }
-
-/* ---- Summary ---- */
-
-.rooster-summary {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  padding: 0.5rem;
-  background: var(--clr-surface);
-  border: 1px solid var(--clr-border);
-  border-radius: var(--radius);
-}
-
-.sum-dag {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.sum-label {
-  text-transform: uppercase;
-  color: var(--clr-text-muted);
-  letter-spacing: 0.03em;
-}
-
-.sum-les { color: var(--clr-accent); }
-.sum-bezet { color: var(--clr-bezig); }
-.sum-vrij { color: var(--clr-klaar); }
 
 /* ---- Responsive ---- */
 
