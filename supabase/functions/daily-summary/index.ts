@@ -176,7 +176,7 @@ function formatMin(min: number): string {
   return `${min}'`;
 }
 
-// ---- WeekGrid builder (HTML table for email) ----
+// ---- WeekGrid SVG builder ----
 
 const GRID_CLR: Record<string, string> = {
   vrij: "#f0f0ee",
@@ -196,12 +196,14 @@ const TAAK_PRIO: Record<string, number> = {
 };
 const ROOSTER_PRIO: Record<string, number> = { bezet: 2, les: 1 };
 
+// ---- WeekGrid compact HTML table for email ----
+
 function buildWeekGridHtml(
   alleTaken: MergedTaak[],
   weekRooster: WeekRooster,
   vandaagIdx: number
 ): string {
-  // Layer 1: rooster
+  // Reuse same grid logic from buildWeekGridSvg
   const roosterMap: Record<string, Record<number, string>> = {};
   for (const dag of DAGEN) roosterMap[dag] = {};
   for (const dag of DAGEN) {
@@ -222,7 +224,6 @@ function buildWeekGridHtml(
     }
   }
 
-  // Layer 2: taken
   const takenMap: Record<string, Record<number, string>> = {};
   for (const dag of DAGEN) takenMap[dag] = {};
   takenMap["_"] = {};
@@ -232,17 +233,11 @@ function buildWeekGridHtml(
     const status = taak.voortgang.status;
     const isRooster = taak.tijd?.type === "rooster";
     const minuten = taakMin(taak);
-    const aantalBlokken = isRooster
-      ? 4
-      : Math.max(1, Math.ceil(minuten / 15));
+    const aantalBlokken = isRooster ? 4 : Math.max(1, Math.ceil(minuten / 15));
 
     let kleur: string;
     if (status === "klaar" || status === "ingediend") kleur = "klaar";
-    else if (
-      taak.geplandOp &&
-      DAGEN.indexOf(taak.geplandOp) < vandaagIdx
-    )
-      kleur = "gemist";
+    else if (taak.geplandOp && DAGEN.indexOf(taak.geplandOp) < vandaagIdx) kleur = "gemist";
     else if (isRooster) kleur = "rooster";
     else kleur = "huiswerk";
 
@@ -258,61 +253,40 @@ function buildWeekGridHtml(
       for (let b = 0; b <= BLOKKEN - aantalBlokken; b++) {
         let vrij = true;
         for (let j = 0; j < aantalBlokken; j++) {
-          if (takenMap[dag][b + j] || roosterMap[dag]?.[b + j]) {
-            vrij = false;
-            break;
-          }
+          if (takenMap[dag][b + j] || roosterMap[dag]?.[b + j]) { vrij = false; break; }
         }
-        if (vrij) {
-          start = b;
-          break;
-        }
+        if (vrij) { start = b; break; }
       }
       for (let j = 0; j < aantalBlokken; j++) {
         if (start + j < BLOKKEN) takenMap[dag][start + j] = kleur;
       }
     } else {
       for (let j = 0; j < aantalBlokken; j++) {
-        if (ongeplandBlok + j < BLOKKEN)
-          takenMap["_"][ongeplandBlok + j] = kleur;
+        if (ongeplandBlok + j < BLOKKEN) takenMap["_"][ongeplandBlok + j] = kleur;
       }
       ongeplandBlok += aantalBlokken;
     }
   }
 
-  // Resolve uur color (same logic as WeekGrid.vue uurClass)
   function uurColor(kolKey: string, uurIdx: number): string {
     const baseBlok = uurIdx * 4;
     const tm = takenMap[kolKey] || {};
     const rm = roosterMap[kolKey] || {};
-
     let bestTaak: string | null = null;
     for (let j = 0; j < 4; j++) {
       const k = tm[baseBlok + j];
-      if (
-        k &&
-        (!bestTaak || (TAAK_PRIO[k] || 0) > (TAAK_PRIO[bestTaak] || 0))
-      )
-        bestTaak = k;
+      if (k && (!bestTaak || (TAAK_PRIO[k] || 0) > (TAAK_PRIO[bestTaak] || 0))) bestTaak = k;
     }
     if (bestTaak) return GRID_CLR[bestTaak] || GRID_CLR.vrij;
-
     let bestRooster: string | null = null;
     for (let j = 0; j < 4; j++) {
       const k = rm[baseBlok + j];
-      if (
-        k &&
-        (!bestRooster ||
-          (ROOSTER_PRIO[k] || 0) > (ROOSTER_PRIO[bestRooster] || 0))
-      )
-        bestRooster = k;
+      if (k && (!bestRooster || (ROOSTER_PRIO[k] || 0) > (ROOSTER_PRIO[bestRooster] || 0))) bestRooster = k;
     }
     if (bestRooster) return GRID_CLR[bestRooster] || GRID_CLR.vrij;
-
     return GRID_CLR.vrij;
   }
 
-  // Build HTML table
   const kolommen = [...DAGEN, "_"];
   const kolLabels: Record<string, string> = {};
   for (const d of DAGEN) kolLabels[d] = d;
@@ -321,23 +295,15 @@ function buildWeekGridHtml(
   let rows = "";
   for (const kol of kolommen) {
     const isVandaag = kol === DAGEN[vandaagIdx];
-    const labelStyle = isVandaag
-      ? `color:${CLR.accent};`
-      : kol === "_"
-        ? "color:#d97706;"
-        : `color:${CLR.textMuted};`;
-    rows += `<tr>`;
-    rows += `<td align="right" style="font-size:8px;font-weight:700;text-transform:uppercase;padding-right:4px;${labelStyle}width:18px;">${kolLabels[kol]}</td>`;
+    const lc = isVandaag ? CLR.accent : kol === "_" ? "#d97706" : CLR.textMuted;
+    let cells = `<td style="font:700 9px sans-serif;color:${lc};text-align:right;padding-right:3px">${kolLabels[kol]}</td>`;
     for (let u = 0; u < 14; u++) {
-      const bg = uurColor(kol, u);
-      rows += `<td style="width:14px;height:10px;background:${bg};border-radius:2px;"></td>`;
+      cells += `<td bgcolor="${uurColor(kol, u)}" width="16" height="10"></td>`;
     }
-    rows += `</tr>`;
+    rows += `<tr>${cells}</tr>`;
   }
 
-  return `<table cellspacing="1" cellpadding="0" border="0" style="border-collapse:separate;border-spacing:1px;">
-    ${rows}
-  </table>`;
+  return `<table cellspacing="1" cellpadding="0" border="0">${rows}</table>`;
 }
 
 // ---- Email HTML builder ----
@@ -356,18 +322,27 @@ const CLR = {
 };
 
 function borderColor(t: MergedTaak, isVerleden: boolean, vandaagIdx: number) {
-  if (isKlaar(t)) return CLR.klaar;
+  if (isKlaar(t)) return "#10b981";
   if (isVerleden || (t.geplandOp && DAGEN.indexOf(t.geplandOp) < vandaagIdx))
-    return CLR.gemist;
-  if (t.tijd?.type === "rooster") return CLR.rooster;
-  return CLR.huiswerk;
+    return "#ef4444";
+  if (t.tijd?.type === "rooster") return "#c4b5fd";
+  return "#93c5fd";
+}
+
+function statusBadge(t: MergedTaak, isVerleden: boolean, vandaagIdx: number): string {
+  if (t.voortgang.status === "klaar") return `<span style="font-size:9px;font-weight:700;color:#059669;background:#ecfdf5;padding:1px 5px;border-radius:3px;">KLAAR</span>`;
+  if (t.voortgang.status === "ingediend") return `<span style="font-size:9px;font-weight:700;color:#059669;background:#ecfdf5;padding:1px 5px;border-radius:3px;">INGEDIEND</span>`;
+  if (t.voortgang.status === "bezig") return `<span style="font-size:9px;font-weight:700;color:#b45309;background:#fffbeb;padding:1px 5px;border-radius:3px;">BEZIG</span>`;
+  if (isVerleden || (t.geplandOp && DAGEN.indexOf(t.geplandOp) < vandaagIdx))
+    return `<span style="font-size:9px;font-weight:700;color:#dc2626;background:#fef2f2;padding:1px 5px;border-radius:3px;">GEMIST</span>`;
+  return `<span style="font-size:9px;font-weight:700;color:${CLR.textMuted};background:${CLR.bg};padding:1px 5px;border-radius:3px;">OPEN</span>`;
 }
 
 function buildEmailHtml(
   studentName: string,
   weekNr: number | string,
   alleTaken: MergedTaak[],
-  weekRooster: WeekRooster,
+  weekGridHtml: string,
   plannerUrl: string
 ): string {
   const now = new Date();
@@ -385,7 +360,12 @@ function buildEmailHtml(
   const klaarMinTot = alleTaken
     .filter(isKlaar)
     .reduce((s, t) => s + taakMin(t), 0);
+  const totaalCount = alleTaken.length;
   const totaalMinTot = alleTaken.reduce((s, t) => s + taakMin(t), 0);
+
+  const gepland = alleTaken.filter((t) => !isKlaar(t) && t.geplandOp);
+  const geplandCount = gepland.length;
+  const geplandMin = gepland.reduce((s, t) => s + taakMin(t), 0);
 
   const overdue = alleTaken.filter(
     (t) =>
@@ -405,38 +385,40 @@ function buildEmailHtml(
     .reduce((s, t) => s + taakMin(t), 0);
 
   const vandaagTaken = alleTaken.filter((t) => t.geplandOp === vandaagDag);
-  const vandaagTotaalMin = vandaagTaken
+  const vandaagOpenMin = vandaagTaken
+    .filter((t) => !isKlaar(t))
     .reduce((s, t) => s + taakMin(t), 0);
 
-  // WeekGrid
-  const gridHtml = buildWeekGridHtml(alleTaken, weekRooster, vandaagIdx);
+  const restTaken = alleTaken.filter(
+    (t) => t.geplandOp && DAGEN.indexOf(t.geplandOp) > vandaagIdx
+  );
+  const restOpenMin = restTaken
+    .filter((t) => !isKlaar(t))
+    .reduce((s, t) => s + taakMin(t), 0);
 
-  // Build task row HTML — code + duration only, vak as fallback for missing code
-  function taakRow(t: MergedTaak, isVerleden: boolean, showDag = false) {
+  // Two-line task card: line 1 = code + duur + status badge, line 2 = omschrijving
+  function taakRow(t: MergedTaak, isVerleden: boolean) {
     const bc = borderColor(t, isVerleden, vandaagIdx);
-    const opacity = isKlaar(t) ? "opacity:0.55;" : "";
+    const opacity = isKlaar(t) ? "opacity:0.5;" : "";
     const label = t.code || t.vak?.slice(0, 4).toUpperCase() || "?";
-    const statusTxt = isKlaar(t)
-      ? `<span style="font-size:9px;color:${CLR.klaar};font-weight:600;">\u2713</span>`
-      : !isKlaar(t) && (isVerleden || (t.geplandOp && DAGEN.indexOf(t.geplandOp) < vandaagIdx))
-        ? `<span style="font-size:9px;font-weight:600;color:#ef4444;">N/A</span>`
-        : "";
     const effectiveMin = taakMin(t);
-    const min = t.tijd?.type === "rooster" && effectiveMin === 0
+    const duur = t.tijd?.type === "rooster" && effectiveMin === 0
       ? "R"
       : effectiveMin > 0
         ? `${effectiveMin}'`
         : "";
-    const dagLabel =
-      showDag && t.geplandOp
-        ? `<span style="font-size:9px;font-weight:700;color:${CLR.textMuted};text-transform:uppercase;width:14px;flex-shrink:0;">${t.geplandOp}</span>`
-        : "";
+    const badge = statusBadge(t, isVerleden, vandaagIdx);
+    const strikethrough = isKlaar(t) ? "text-decoration:line-through;text-decoration-color:#10b981;" : "";
 
-    return `<div style="display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:4px;margin-bottom:2px;font-size:11px;border-left:3px solid ${bc};${opacity}">
-      ${dagLabel}
-      <span style="font-weight:700;color:${CLR.accent};flex-shrink:0;">${escHtml(label)}</span>
-      <span style="font-size:9px;color:${CLR.textMuted};font-weight:600;">${min}</span>
-      ${statusTxt}
+    return `<div style="padding:5px 8px 5px 10px;border-left:3px solid ${bc};background:white;margin:2px 0;${opacity}">
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span style="font-weight:700;font-size:12px;">${escHtml(label)}</span>
+        <span style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+          <span style="font-size:10px;font-weight:700;color:${CLR.textMuted};">${duur}</span>
+          ${badge}
+        </span>
+      </div>
+      <div style="font-size:11px;color:${CLR.textMuted};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${strikethrough}">${escHtml(t.omschrijving)}</div>
     </div>`;
   }
 
@@ -445,27 +427,35 @@ function buildEmailHtml(
     title: string,
     meta: string,
     taken: MergedTaak[],
-    isVerleden: boolean,
-    showDag = false
+    isVerleden: boolean
   ) {
     if (!taken.length) return "";
-    const rows = taken.map((t) => taakRow(t, isVerleden, showDag)).join("");
-    return `<div style="padding:10px 16px;border-bottom:1px solid ${CLR.border};">
-      <div style="font-size:9px;font-weight:700;color:${CLR.textMuted};text-transform:uppercase;letter-spacing:0.5px;">
+    const rows = taken.map((t) => taakRow(t, isVerleden)).join("");
+    return `<div style="padding:8px 0;border-bottom:1px solid ${CLR.border};">
+      <div style="font-size:10px;font-weight:700;color:${CLR.textMuted};text-transform:uppercase;letter-spacing:0.4px;padding:0 0 4px;">
         ${escHtml(title)} <span style="text-transform:none;font-weight:400;letter-spacing:0;">${escHtml(meta)}</span>
       </div>
-      <div style="margin-top:6px;">${rows}</div>
+      ${rows}
     </div>`;
   }
 
-  // Status — plain text lines
-  let statusLines = `<div style="font-size:11px;color:${CLR.text};padding:3px 0;">${klaarCount} taken afgewerkt \u00b7 ${formatMin(klaarMinTot)} van ${formatMin(totaalMinTot)}</div>`;
-  if (overdueCount > 0) {
-    statusLines += `<div style="font-size:11px;color:#dc2626;padding:3px 0;">${overdueCount} taken achterstallig \u00b7 ${formatMin(overdueMin)}</div>`;
+  // Status table (matching dashboard: count · label · minutes right-aligned)
+  function statRow(count: number, label: string, min: number, color: string): string {
+    return `<tr>
+      <td style="font-size:10px;font-weight:700;color:${color};padding:3px 0;width:20px;">${count}</td>
+      <td style="font-size:11px;color:${CLR.textMuted};padding:3px 4px;">${escHtml(label)}</td>
+      <td align="right" style="font-size:10px;font-weight:600;color:${color};padding:3px 0;">${formatMin(min)}</td>
+    </tr>`;
   }
-  if (ongeplandCount > 0) {
-    statusLines += `<div style="font-size:11px;color:#b45309;padding:3px 0;">${ongeplandCount} niet ingepland \u00b7 ${formatMin(ongeplandMin)}</div>`;
-  }
+
+  let statsHtml = `<table cellspacing="0" cellpadding="0" border="0" style="width:100%;">`;
+  statsHtml += statRow(klaarCount, "afgewerkt", klaarMinTot, "#059669");
+  statsHtml += statRow(geplandCount, "gepland", geplandMin, "#93c5fd");
+  if (overdueCount > 0) statsHtml += statRow(overdueCount, "achterstallig", overdueMin, "#ef4444");
+  if (ongeplandCount > 0) statsHtml += statRow(ongeplandCount, "niet ingepland", ongeplandMin, "#d97706");
+  statsHtml += `<tr><td colspan="3" style="border-top:1px solid ${CLR.border};padding-top:4px;"></td></tr>`;
+  statsHtml += statRow(totaalCount, "totaal", totaalMinTot, CLR.textMuted);
+  statsHtml += `</table>`;
 
   // Sections
   const gisterenHtml = section(
@@ -476,8 +466,14 @@ function buildEmailHtml(
   );
   const vandaagHtml = section(
     `Vandaag (${DAGEN_VOL[vandaagIdx]})`,
-    `\u00b7 ${formatMin(vandaagTotaalMin)} gepland`,
+    `\u00b7 ${formatMin(vandaagOpenMin)} gepland`,
     vandaagTaken,
+    false
+  );
+  const restHtml = section(
+    `Rest van de week`,
+    `\u00b7 ${formatMin(restOpenMin)} gepland`,
+    restTaken,
     false
   );
 
@@ -485,37 +481,35 @@ function buildEmailHtml(
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;margin:0;padding:8px 0;background:${CLR.bg};color:${CLR.text};">
-  <div style="max-width:420px;margin:0 auto;background:${CLR.surface};border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+  <div style="max-width:420px;margin:0 auto;">
 
     <!-- Header -->
-    <div style="padding:14px 16px;border-bottom:2px solid ${CLR.border};">
+    <div style="padding:10px 0 6px;border-bottom:1px solid ${CLR.border};">
       <div style="font-size:10px;color:${CLR.textMuted};">${escHtml(dateTxt)}</div>
-      <h2 style="margin:3px 0 0;font-size:14px;font-weight:700;color:${CLR.text};">Dagelijkse update voor ${escHtml(studentName)}</h2>
-      <div style="margin-top:2px;font-size:11px;color:${CLR.textMuted};">P3 Week ${escHtml(String(weekNr))}</div>
+      <div style="font-size:14px;font-weight:700;color:${CLR.text};margin-top:2px;">${escHtml(studentName)}</div>
     </div>
 
     <!-- WeekGrid -->
-    <div style="padding:10px 16px;border-bottom:1px solid ${CLR.border};">
-      ${gridHtml}
-    </div>
+    ${weekGridHtml ? `<div style="padding:8px 0;border-bottom:1px solid ${CLR.border};">${weekGridHtml}</div>` : ""}
 
-    <!-- Status -->
-    <div style="padding:8px 16px;border-bottom:1px solid ${CLR.border};">
-      ${statusLines}
+    <!-- Stats -->
+    <div style="padding:6px 0;border-bottom:1px solid ${CLR.border};">
+      ${statsHtml}
     </div>
 
     <!-- Sections -->
     ${gisterenHtml}
     ${vandaagHtml}
+    ${restHtml}
 
     <!-- CTA -->
-    <div style="padding:12px 16px;">
-      <a href="${plannerUrl}" style="display:block;text-align:center;background:${CLR.accent};color:white;padding:10px;border-radius:8px;text-decoration:none;font-weight:700;font-size:12px;">Bekijk planning</a>
+    <div style="padding:14px 0;">
+      <a href="${plannerUrl}" style="display:block;text-align:center;background:${CLR.accent};color:white;padding:10px;border-radius:6px;text-decoration:none;font-weight:700;font-size:12px;">Bekijk planning</a>
     </div>
 
     <!-- Footer -->
-    <div style="text-align:center;font-size:9px;color:${CLR.textMuted};padding:0 16px 12px;">
-      Gekoppeld aan ${escHtml(studentName)}'s planning op Catplanner
+    <div style="text-align:center;font-size:9px;color:${CLR.textMuted};padding:0 0 12px;">
+      Catplanner \u00b7 ${escHtml(studentName)}'s planning
     </div>
   </div>
 </body>
@@ -641,13 +635,18 @@ Deno.serve(async (req) => {
         if (u.email) emailMap.set(u.id, u.email);
       }
 
+      // Generate WeekGrid HTML
+      const now = new Date();
+      const vandaagIdx = [6, 0, 1, 2, 3, 4, 5][now.getDay()];
+      const weekGridHtml = buildWeekGridHtml(taken, weekRooster, vandaagIdx);
+
       const klaarCount = taken.filter(isKlaar).length;
       const subject = `${studentName}: ${klaarCount}/${taken.length} taken klaar`;
       const html = buildEmailHtml(
         studentName,
         weekNr,
         taken,
-        weekRooster,
+        weekGridHtml,
         plannerUrl
       );
 
