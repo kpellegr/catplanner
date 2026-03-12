@@ -376,7 +376,7 @@ function taakStatusInfo(taak, week) {
   const geplandOp = planVal ? (typeof planVal === 'string' ? planVal : planVal.dag) : null;
 
   if (status === 'ingediend') return { label: 'Ingediend', cls: 'status-ingediend' };
-  if (status === 'klaar') return { label: 'In te dienen', cls: 'status-intedienen' };
+  if (status === 'klaar') return { label: 'Klaar', cls: 'status-intedienen' };
   if (geplandOp) {
     const dagIdx = dagen.indexOf(geplandOp);
     if (dagIdx < vandaagIdx && status !== 'klaar' && status !== 'ingediend') {

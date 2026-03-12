@@ -1286,18 +1286,11 @@ const nuTijd = computed(() => {
   return `${h}:${m.toString().padStart(2, '0')}`;
 });
 
-// Is a task in the past? (planned before "now" and not klaar)
+// Is a task in the past? (planned on a day before today and not klaar)
 function isOverdue(taak) {
   if (!taak.geplandOp) return false;
   if (taak.voortgang.status === 'klaar' || taak.voortgang.status === 'ingediend') return false;
-  const taakDagIdx = dagen.indexOf(taak.geplandOp);
-  const vandaagIdx = dagen.indexOf(vandaagDag.value);
-  if (taakDagIdx < vandaagIdx) return true;
-  if (taakDagIdx === vandaagIdx && taak.geplandBlok !== null && nuBlok.value >= 0) {
-    const taakEnd = taak.geplandBlok + taakBlokken(taak);
-    if (taakEnd <= nuBlok.value) return true;
-  }
-  return false;
+  return dagen.indexOf(taak.geplandOp) < dagen.indexOf(vandaagDag.value);
 }
 </script>
 
