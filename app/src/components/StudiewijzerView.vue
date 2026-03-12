@@ -43,8 +43,7 @@
     <template v-for="week in bronWeken" :key="`P${week.metadata.periode}W${week.metadata.week}`">
       <!-- Week header -->
       <div class="sw-week-header">
-        <span class="sw-week-label">Periode {{ week.metadata.periode }} – Week {{ week.metadata.week }}</span>
-        <span v-if="week.metadata.datumRange" class="sw-week-datum">{{ fmtRange(week.metadata.datumRange) }}</span>
+        <span class="sw-week-label">P{{ week.metadata.periode }}W{{ week.metadata.week }}</span>
         <span class="sw-week-totals">
           {{ weekTotalsFiltered(week).zichtbaar }}/{{ weekTotals(week).totaal }} taken
           · {{ weekTotalsFiltered(week).minuten }}'
@@ -66,24 +65,28 @@
           <div class="sw-vak-header">
             <button
               v-if="!isReadOnly"
-              class="toggle-btn"
+              class="toggle-btn desktop-only"
               :class="{ on: isVakActief(section.vak) }"
               @click="toggleVak(section.vak)"
               :title="isVakActief(section.vak) ? 'Vak uitzetten' : 'Vak aanzetten'"
             >
               <span class="toggle-knob"></span>
             </button>
-            <span class="sw-vak-naam">{{ section.vak }}</span>
-            <span v-if="section.projectTitel" class="sw-project-titel">{{ section.projectTitel }}</span>
-            <span class="sw-vak-stats">
-              {{ sectionActief(section, week) }}/{{ section.taken.length }} taken
-              <template v-if="sectionStats(section).minuten">
-                · {{ sectionStats(section).minuten }}'
-              </template>
-              <template v-if="sectionStats(section).rooster">
-                · {{ sectionStats(section).rooster }}× R
-              </template>
-            </span>
+            <div class="sw-vak-info">
+              <div class="sw-vak-line1">
+                <span class="sw-vak-naam">{{ section.vak }}</span>
+                <span class="sw-vak-stats">
+                  {{ sectionActief(section, week) }}/{{ section.taken.length }}t
+                  <template v-if="sectionStats(section).minuten">
+                    {{ sectionStats(section).minuten }}'
+                  </template>
+                  <template v-if="sectionStats(section).rooster">
+                    {{ sectionStats(section).rooster }}×R
+                  </template>
+                </span>
+              </div>
+              <div v-if="section.projectTitel" class="sw-project-titel">{{ section.projectTitel }}</div>
+            </div>
             <!-- Vak-level filter reden -->
             <span v-if="!isVakActief(section.vak) && vakFilterReden(section, week)" class="sw-vak-reden">
               {{ vakFilterReden(section, week) }}
@@ -142,23 +145,23 @@
               </tr>
             </thead>
             <tbody>
+              <template v-for="taak in section.taken" :key="rawTaakKey(taak, week.metadata)">
               <tr
-                v-for="taak in section.taken"
                 v-show="isTaakZichtbaar(taak, section, week)"
-                :key="rawTaakKey(taak, week.metadata)"
                 :class="{
                   'taak-uitgesloten': !isTaakActief(taak, section, week),
                   'taak-klaar': isTaakKlaar(taak, week),
-                  'taak-selected': selectedTaakId === rawTaakKey(taak, week.metadata)
+                  'taak-selected': selectedTaakId === rawTaakKey(taak, week.metadata),
+                  'taak-expanded': expandedMobileTaak === rawTaakKey(taak, week.metadata)
                 }"
-                @click="selectTaak(rawTaakKey(taak, week.metadata))"
+                @click="onTaakClick(taak, week)"
               >
-                <td class="col-incl">
+                <td class="col-incl desktop-only">
                   <button
                     v-if="!isReadOnly && isVakActief(section.vak)"
                     class="btn-toggle-taak"
                     :class="isTaakActief(taak, section, week) ? 'incl-ja' : 'incl-nee'"
-                    @click="toggleTaak(taak, section, week)"
+                    @click.stop="toggleTaak(taak, section, week)"
                     :title="isTaakActief(taak, section, week) ? 'Uitsluiten' : 'Opnemen'"
                   >
                     {{ isTaakActief(taak, section, week) ? '✓' : '✗' }}
@@ -202,6 +205,26 @@
                   </span>
                 </td>
               </tr>
+              <!-- Mobile expanded detail row -->
+              <tr
+                v-if="expandedMobileTaak === rawTaakKey(taak, week.metadata)"
+                class="mobile-detail-row"
+              >
+                <td :colspan="8">
+                  <div class="mobile-detail">
+                    <div class="mobile-detail-meta">
+                      <span v-if="taak.richting" class="richting-label">{{ taak.richting }}</span>
+                      <span v-if="taak.volgorde" class="volgorde-num">{{ taak.volgorde }}</span>
+                      <span class="mobile-detail-right">
+                        <span v-for="f in (taak.flags || [])" :key="f" class="flag-badge" :class="`flag-${f.toLowerCase()}`">{{ f }}</span>
+                        <span v-if="taakStatusInfo(taak, week).label" :class="taakStatusInfo(taak, week).cls">{{ taakStatusInfo(taak, week).label }}</span>
+                      </span>
+                    </div>
+                    <div class="mobile-detail-omschrijving">{{ taak.omschrijving }}</div>
+                  </div>
+                </td>
+              </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -211,7 +234,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick } from 'vue';
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import { filterVoorProfiel } from '../lib/parser.js';
@@ -225,11 +248,28 @@ onMounted(() => {
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }
+  window.addEventListener('resize', onResize);
+});
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize);
 });
 
 // Filter toggles
 const toonUitgesloten = ref(false);
 const verbergAfgerond = ref(false);
+const expandedMobileTaak = ref(null);
+
+const isMobile = ref(window.innerWidth <= 700);
+function onResize() { isMobile.value = window.innerWidth <= 700; }
+
+function onTaakClick(taak, week) {
+  const key = rawTaakKey(taak, week.metadata);
+  if (isMobile.value) {
+    expandedMobileTaak.value = expandedMobileTaak.value === key ? null : key;
+  } else {
+    selectTaak(key);
+  }
+}
 
 function isTaakZichtbaar(taak, section, week) {
   const actief = isTaakActief(taak, section, week);
@@ -697,11 +737,6 @@ function flagLabel(f) { return FLAG_LABELS[f] || f; }
   font-size: 1.1rem;
 }
 
-.sw-week-datum {
-  font-size: 0.85rem;
-  color: var(--clr-text-muted);
-}
-
 .sw-week-totals {
   font-size: 0.8rem;
   color: var(--clr-text-muted);
@@ -730,7 +765,7 @@ function flagLabel(f) { return FLAG_LABELS[f] || f; }
 }
 
 .sw-section-inactief {
-  opacity: 0.45;
+  opacity: 0.7;
 }
 
 .sw-vak-header {
@@ -741,6 +776,17 @@ function flagLabel(f) { return FLAG_LABELS[f] || f; }
   background: var(--clr-bg);
   border-bottom: 1px solid var(--clr-border);
   flex-wrap: wrap;
+}
+
+.sw-vak-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sw-vak-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
 }
 
 .sw-vak-naam {
@@ -1018,7 +1064,6 @@ function flagLabel(f) { return FLAG_LABELS[f] || f; }
 /* Uitgesloten rij */
 .taak-uitgesloten td {
   color: var(--clr-text-muted);
-  opacity: 0.55;
 }
 
 .taak-uitgesloten .col-incl {
@@ -1141,16 +1186,121 @@ function flagLabel(f) { return FLAG_LABELS[f] || f; }
   border-radius: 50%;
 }
 
-/* Responsive */
+/* Mobile detail row (hidden on desktop) */
+.mobile-detail-row { display: none; }
+
+/* desktop-only helper */
+@media (min-width: 701px) {
+  .mobile-detail-row { display: none !important; }
+}
+
+/* Responsive — card layout on mobile */
 @media (max-width: 700px) {
-  .sw-tabel { font-size: 0.75rem; }
-  .col-code { width: 50px; }
+  .desktop-only { display: none !important; }
+
+  .sw-header h2 { font-size: 1rem; margin-bottom: 0.15rem; }
+  .sw-hint { display: none; }
+  .btn-print { display: none; }
+
+  .sw-week-header {
+    flex-wrap: wrap;
+    gap: 0.2rem;
+    padding: 0.4rem 0;
+  }
+  .sw-week-label { font-size: 0.95rem; }
+
+  .sw-vak-header { padding: 0.4rem 0.5rem; }
+  .sw-vak-naam { font-size: 0.85rem; }
+  .sw-koppeling-rij { display: none; }
+  .sw-koppeling-overig { display: none; }
+
+  /* Table → card list */
+  .sw-tabel { display: block; }
+  .sw-tabel thead { display: none; }
+  .sw-tabel tbody { display: flex; flex-direction: column; }
+  .sw-tabel tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2rem 0.4rem;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sw-tabel td {
+    padding: 0;
+    border: none;
+    width: auto !important;
+  }
+
+  /* Hide columns on mobile — details in expanded row */
   .col-richting { display: none; }
   .col-flags { display: none; }
   .col-volgorde { display: none; }
-  .sw-tabel th.col-richting,
-  .sw-tabel th.col-flags,
-  .sw-tabel th.col-volgorde { display: none; }
+  .col-status { display: none; }
+
+  /* Layout: code omschrijving | tijd */
+  .col-code {
+    flex-shrink: 0;
+    width: auto !important;
+    font-size: 0.8rem;
+  }
+  .col-omschrijving {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8rem;
+  }
+  .col-tijd {
+    flex-shrink: 0;
+    width: auto !important;
+    font-size: 0.75rem;
+    text-align: right;
+  }
+
+  /* Expanded row */
+  .mobile-detail-row {
+    display: flex !important;
+    padding: 0 !important;
+    border-bottom: 1px solid var(--clr-border) !important;
+    background: var(--clr-bg);
+  }
+  .mobile-detail-row td {
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  .mobile-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.4rem 0.5rem 0.5rem;
+  }
+  .mobile-detail-omschrijving {
+    font-size: 0.8rem;
+    color: var(--clr-text);
+    white-space: normal;
+    line-height: 1.4;
+  }
+  .mobile-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+  }
+  .mobile-detail-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  /* Active row highlight */
+  .taak-expanded {
+    background: rgba(99, 102, 241, 0.04);
+  }
 }
 
 @media print {
