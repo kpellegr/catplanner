@@ -5,6 +5,11 @@
       <WeekGrid compact />
     </div>
 
+    <!-- Burn-down chart -->
+    <div class="db-section">
+      <BurndownChart />
+    </div>
+
     <!-- Status samenvatting -->
     <div class="db-stats">
       <div class="db-stat">
@@ -114,6 +119,7 @@
 import { computed, reactive } from 'vue';
 import { usePlanner } from '../stores/planner.js';
 import WeekGrid from './WeekGrid.vue';
+import BurndownChart from './BurndownChart.vue';
 
 const { alleTaken, state, updateVoortgang } = usePlanner();
 
@@ -230,13 +236,13 @@ function toggleKlaar(taak) {
 
 <style scoped>
 .db {
-  max-width: 700px;
+  max-width: 560px;
   margin: 0 auto;
 }
 
 /* Sections */
 .db-section {
-  padding: 0.5rem 0 0.25rem;
+  padding: 0.75rem 0;
   border-bottom: 1px solid var(--clr-border);
 }
 
@@ -244,7 +250,7 @@ function toggleKlaar(taak) {
 .db-stats {
   display: flex;
   flex-direction: column;
-  padding: 0.35rem 0;
+  padding: 0.75rem 0;
   border-bottom: 1px solid var(--clr-border);
 }
 .db-stat {
