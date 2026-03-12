@@ -177,7 +177,7 @@
                   class="wp-nu-line wp-deadline-line"
                   :style="{ top: DEADLINE_BLOK * BLOK_PX + 'px' }"
                 >
-                  <span class="wp-deadline-label">Indienen!</span>
+                  <span class="wp-deadline-label">{{ deadlineLabel }}</span>
                 </div>
 
                 <!-- Placed tasks -->
@@ -308,6 +308,12 @@ const BLOK_PX_WEEK = 22;
 const BLOK_PX_DAG = 36;
 const BLOK_PX = computed(() => viewMode.value === 'dag' ? BLOK_PX_DAG : BLOK_PX_WEEK);
 const DEADLINE_BLOK = 50; // 21:00 = 12.5h after 8:30 = 750min / 15 = 50 blokken
+
+const deadlineLabel = computed(() => {
+  const nog = alleTaken.value.filter(t => t.voortgang?.status !== 'ingediend').length;
+  if (nog === 0) return 'Alles ingediend!';
+  return `nog ${nog} indienen`;
+});
 const BLOKKEN_PER_UUR = 4;   // 4 × 15 min = 60 min
 const TOTAL_BLOKKEN = 14 * BLOKKEN_PER_UUR; // 56 blocks
 const TOTAL_PX = computed(() => TOTAL_BLOKKEN * BLOK_PX.value);

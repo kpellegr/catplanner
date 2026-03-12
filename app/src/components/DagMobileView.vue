@@ -14,33 +14,44 @@
       </button>
     </div>
 
-    <!-- Tijdlijn: alle uren + taken -->
+    <!-- Tijdlijn -->
     <div class="dm-schedule">
       <template v-for="slot in timeline" :key="slot.key">
-        <!-- Uur header -->
-        <div class="dm-slot" :class="'dm-slot-' + slot.slotType">
+        <!-- "Nu" lijn -->
+        <div v-if="dag === vandaagDag && nuUur === slot.uur" class="dm-nu-line">
+          <span class="dm-nu-label">{{ nuTijd }}</span>
+        </div>
+
+        <!-- Deadline lijn (zondag 21:00) -->
+        <div v-if="dag === 'zo' && deadlineUur === slot.uur" class="dm-nu-line dm-deadline-line">
+          <span class="dm-nu-label">{{ deadlineLabel }}</span>
+        </div>
+
+        <!-- Uur header: verberg als een taak dit uur overspant -->
+        <div v-if="!isUurVerborgen(slot.uur)" class="dm-slot" :class="'dm-slot-' + slot.slotType">
           <span class="dm-slot-tijd">{{ slot.tijd }}</span>
           <span class="dm-slot-titel">{{ slot.titel }}</span>
         </div>
 
-        <!-- Taken in dit uur -->
+        <!-- Taken die in dit uur starten -->
         <div
-          v-for="taak in slot.taken"
-          :key="taak.id"
+          v-for="item in takenVoorUur(slot.uur)"
+          :key="item.taak.id"
           class="dm-taak"
-          :class="taakClass(taak)"
+          :class="taakClass(item.taak)"
+          :style="taakHoogte(item)"
         >
           <div class="dm-taak-top">
-            <span class="dm-taak-code">{{ taak.code || shortVak(taak) }}</span>
+            <span class="dm-taak-code">{{ item.taak.code || shortVak(item.taak) }}</span>
             <span class="dm-taak-badges">
               <span class="dm-taak-duur">
-                <template v-if="taak.tijd?.type === 'rooster'">R</template>
-                <template v-else>{{ taakMinuten(taak) }}'</template>
+                <template v-if="item.taak.tijd?.type === 'rooster'">R</template>
+                <template v-else>{{ taakMinuten(item.taak) }}'</template>
               </span>
-              <span class="dm-taak-status" :class="'dm-status-' + statusLabel(taak).cls">{{ statusLabel(taak).text }}</span>
+              <span class="dm-taak-status" :class="'dm-status-' + statusLabel(item.taak).cls" @click.stop="toggleKlaar(item.taak)">{{ statusLabel(item.taak).text }}</span>
             </span>
           </div>
-          <div class="dm-taak-omschrijving">{{ taak.omschrijving }}</div>
+          <div class="dm-taak-omschrijving">{{ item.taak.omschrijving }}</div>
         </div>
       </template>
     </div>
@@ -92,7 +103,6 @@ const vandaagDag = dagen[vandaagIdx] || 'ma';
 
 const openOngepland = ref(false);
 
-// Use shared wpFocusDag so desktop and mobile stay in sync
 const dag = computed(() => wpFocusDag.value || vandaagDag);
 const dagIdx = computed(() => dagen.indexOf(dag.value));
 const dagVol = computed(() => dagenVol[dagIdx.value] || '');
@@ -142,7 +152,6 @@ const ongeplandMin = computed(() =>
   ongepland.value.reduce((s, t) => s + taakMinuten(t), 0)
 );
 
-// Dag caption: "3 taken · 75'"
 const dagCaption = computed(() => {
   const open = dagTaken.value.filter(t => !isKlaar(t));
   const min = open.reduce((s, t) => s + taakMinuten(t), 0);
@@ -152,9 +161,8 @@ const dagCaption = computed(() => {
   return `${open.length} open · ${min}'`;
 });
 
-// Detect max uren from weekRooster
 function detectMaxUur() {
-  let max = 10; // default: 8:30–17:30
+  let max = 10;
   const wr = state.weekRooster;
   if (wr) {
     for (const d of dagen) {
@@ -168,14 +176,30 @@ function detectMaxUur() {
   return max;
 }
 
-// Full timeline: all hours with rooster info + tasks placed in each hour
+// Timeline: uur headers
 const timeline = computed(() => {
   const maxUur = detectMaxUur();
   const dagRooster = state.weekRooster?.[dag.value] || {};
+  const slots = [];
+  for (let uur = 1; uur <= maxUur; uur++) {
+    const rooster = dagRooster[uur] || dagRooster[String(uur)];
+    const slotType = rooster?.type || 'vrij';
+    const titel = rooster?.titel || (slotType === 'vrij' ? '' : slotType);
+    slots.push({
+      key: `s_${uur}`,
+      uur,
+      slotType,
+      titel,
+      tijd: blokToTijd((uur - 1) * 4),
+    });
+  }
+  return slots;
+});
 
-  // Build uur→taken map based on geplandBlok
-  const takenPerUur = {};
-  const sortedTaken = [...dagTaken.value].sort((a, b) => {
+// Placed taken met start/end uur
+const placedTaken = computed(() => {
+  const maxUur = detectMaxUur();
+  const sorted = [...dagTaken.value].sort((a, b) => {
     if (a.geplandBlok != null && b.geplandBlok != null) return a.geplandBlok - b.geplandBlok;
     if (a.geplandBlok != null) return -1;
     if (b.geplandBlok != null) return 1;
@@ -183,9 +207,11 @@ const timeline = computed(() => {
   });
 
   const bezet = new Set();
-  for (const taak of sortedTaken) {
+  const items = [];
+
+  for (const taak of sorted) {
     const isR = taak.tijd?.type === 'rooster';
-    const min = taakMinuten(taak);
+    const min = isR ? 60 : taakMinuten(taak);
     const blokken = isR ? 4 : Math.max(1, Math.ceil(min / 15));
     let blok = taak.geplandBlok;
 
@@ -202,30 +228,66 @@ const timeline = computed(() => {
 
     for (let j = 0; j < blokken; j++) bezet.add(blok + j);
 
-    // Map to uur (blok 0-3 = uur 1, blok 4-7 = uur 2, etc.)
-    const uur = Math.floor(blok / 4) + 1;
-    if (!takenPerUur[uur]) takenPerUur[uur] = [];
-    takenPerUur[uur].push(taak);
+    const startUur = Math.floor(blok / 4) + 1;
+    const endBlok = blok + blokken;
+    const endUur = Math.floor((endBlok - 1) / 4) + 1;
+    const spanUren = endUur - startUur + 1;
+
+    items.push({ taak, startUur, endUur, spanUren });
   }
 
-  const slots = [];
-  for (let uur = 1; uur <= maxUur; uur++) {
-    const rooster = dagRooster[uur] || dagRooster[String(uur)];
-    const slotType = rooster?.type || 'vrij';
-    const titel = rooster?.titel || (slotType === 'vrij' ? '' : slotType);
-    const startBlok = (uur - 1) * 4;
+  return items;
+});
 
-    slots.push({
-      key: `s_${uur}`,
-      uur,
-      slotType,
-      titel,
-      tijd: blokToTijd(startBlok),
-      taken: takenPerUur[uur] || [],
-    });
+// Welke uren zijn overspannen door een taak (niet het startuur)?
+const verborgenUren = computed(() => {
+  const set = new Set();
+  for (const item of placedTaken.value) {
+    for (let u = item.startUur + 1; u <= item.endUur; u++) {
+      set.add(u);
+    }
   }
+  return set;
+});
 
-  return slots;
+function isUurVerborgen(uur) {
+  return verborgenUren.value.has(uur);
+}
+
+// Taken die in een bepaald uur starten
+function takenVoorUur(uur) {
+  return placedTaken.value.filter(item => item.startUur === uur);
+}
+
+// Proportionele hoogte voor taken die meerdere uren overspannen
+// Elke verborgen slot-header = ~1.6rem die we moeten compenseren
+function taakHoogte(item) {
+  if (item.spanUren <= 1) return {};
+  const extraSlots = item.spanUren - 1;
+  return { minHeight: `calc(${item.spanUren * 2.5}rem + ${extraSlots * 1.6}rem)` };
+}
+
+// "Nu" indicator
+const nuUur = computed(() => {
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const minutesSince830 = (h - 8) * 60 + (m - 30);
+  if (minutesSince830 < 0) return -1;
+  return Math.floor(minutesSince830 / 60) + 1;
+});
+
+const nuTijd = computed(() => {
+  const h = now.getHours();
+  const m = now.getMinutes();
+  return `${h}:${String(m).padStart(2, '0')}`;
+});
+
+const deadlineUur = 14;
+
+const deadlineLabel = computed(() => {
+  const nog = alleTaken.value.filter(t => t.voortgang.status !== 'ingediend').length;
+  if (nog === 0) return 'Alles ingediend!';
+  return `nog ${nog} taken indienen`;
 });
 
 function statusLabel(taak) {
@@ -255,7 +317,7 @@ function toggleKlaar(taak) {
   margin: 0 auto;
 }
 
-/* Dag navigatie — typographic, minimal */
+/* Dag navigatie */
 .dm-nav {
   display: flex;
   align-items: center;
@@ -308,7 +370,7 @@ function toggleKlaar(taak) {
   flex-direction: column;
 }
 
-/* Uur header — studiewijzer-style: uppercase, small, border-bottom */
+/* Uur header */
 .dm-slot {
   display: flex;
   align-items: baseline;
@@ -338,7 +400,7 @@ function toggleKlaar(taak) {
   color: var(--clr-text);
 }
 
-/* Vrij slot — subtle */
+/* Vrij slot */
 .dm-slot-vrij {
   border-bottom-color: rgba(0,0,0,0.04);
 }
@@ -348,7 +410,7 @@ function toggleKlaar(taak) {
   opacity: 0.25;
 }
 
-/* Taak — white card for depth against bg */
+/* Taak */
 .dm-taak {
   display: flex;
   flex-direction: column;
@@ -401,7 +463,7 @@ function toggleKlaar(taak) {
   text-decoration-color: #10b981;
 }
 
-/* Duur badge — like studiewijzer tijd */
+/* Duur */
 .dm-taak-duur {
   font-size: 0.7rem;
   font-weight: 700;
@@ -409,7 +471,7 @@ function toggleKlaar(taak) {
   color: var(--clr-text-muted);
 }
 
-/* Status badge — studiewijzer-style pills */
+/* Status badge */
 .dm-taak-status {
   font-size: 0.65rem;
   font-weight: 700;
@@ -417,6 +479,11 @@ function toggleKlaar(taak) {
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.dm-taak-status:active {
+  opacity: 0.6;
 }
 .dm-status-klaar {
   color: #059669;
@@ -435,7 +502,29 @@ function toggleKlaar(taak) {
   background: var(--clr-bg);
 }
 
-/* Ongepland sectie — studiewijzer groep-header style */
+/* "Nu" lijn */
+.dm-nu-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0;
+}
+.dm-nu-line::before {
+  content: '';
+  flex: 1;
+  border-top: 2px solid #ef4444;
+}
+.dm-nu-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #ef4444;
+  white-space: nowrap;
+}
+.dm-deadline-line::before {
+  border-top-style: dashed;
+}
+
+/* Ongepland sectie */
 .dm-section {
   margin-top: 0.75rem;
   padding-top: 0.5rem;
@@ -470,13 +559,5 @@ function toggleKlaar(taak) {
 }
 .dm-chevron-open {
   transform: rotate(90deg);
-}
-
-/* Empty */
-.dm-empty {
-  text-align: center;
-  padding: 2rem 1rem;
-  color: var(--clr-text-muted);
-  font-size: 0.85rem;
 }
 </style>
