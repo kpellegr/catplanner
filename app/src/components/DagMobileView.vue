@@ -15,7 +15,7 @@
     </div>
 
     <!-- Tijdlijn -->
-    <div class="dm-schedule">
+    <div ref="scheduleRef" class="dm-schedule">
       <template v-for="slot in timeline" :key="slot.key">
         <!-- "Nu" lijn -->
         <div v-if="dag === vandaagDag && nuUur === slot.uur" class="dm-nu-line">
@@ -28,7 +28,7 @@
         </div>
 
         <!-- Uur header: verberg als een taak dit uur overspant -->
-        <div v-if="!isUurVerborgen(slot.uur)" class="dm-slot" :class="'dm-slot-' + slot.slotType">
+        <div v-if="!isUurVerborgen(slot.uur)" class="dm-slot" :class="'dm-slot-' + slot.slotType" :data-uur="slot.uur">
           <span class="dm-slot-tijd">{{ slot.tijd }}</span>
           <span class="dm-slot-titel">{{ slot.titel }}</span>
         </div>
@@ -87,11 +87,24 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 
-const { alleTaken, state, updateVoortgang, wpFocusDag } = usePlanner();
+const { alleTaken, state, updateVoortgang, wpFocusDag, wpFocusBlok } = usePlanner();
+
+const scheduleRef = ref(null);
+
+onMounted(() => {
+  if (wpFocusBlok.value !== null) {
+    const targetUur = Math.floor(wpFocusBlok.value / 4) + 1;
+    wpFocusBlok.value = null; // consume
+    nextTick(() => {
+      const el = scheduleRef.value?.querySelector(`[data-uur="${targetUur}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+});
 
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const dagenVol = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];

@@ -161,9 +161,14 @@ import FilterBar from './FilterBar.vue';
 const { alleTaken, updateVoortgang, editTaak, addEigenTaak, removeEigenTaak, editEigenTaak, isReadOnly, selectedTaakId, selectTaak, filters } = usePlanner();
 
 onMounted(() => {
-  // Als inTeDienen filter actief is, focus op kolom klaar+ingediend
-  if (filters.inTeDienen) {
+  // Navigation hints from dashboard or other views
+  if (filters._kanbanFocus !== null) {
+    focusKolomIdx.value = filters._kanbanFocus;
+    filters._kanbanFocus = null; // consume the hint
+  } else if (filters.inTeDienen) {
     focusKolomIdx.value = 2; // klaar kolom → paar met ingediend (idx 3)
+  } else if (filters.overdue) {
+    focusKolomIdx.value = 0; // open+bezig kolommen
   }
   if (selectedTaakId.value) {
     nextTick(() => {

@@ -55,6 +55,8 @@ const filters = reactive({
   overdue: false,
   inTeDienen: false,
   conflict: false,
+  // Navigation hint: which kanban column to focus (null = default)
+  _kanbanFocus: null,
 });
 
 // ---- Computed ----
@@ -733,7 +735,24 @@ async function resetAlles() {
 
 const wpViewMode = ref('week');   // 'week' | 'dag'
 const wpFocusDag = ref(null);     // 'ma'..'zo', null = vandaag
+const wpFocusBlok = ref(null);    // blok index (0-based 15-min slot) or null
 const activeView = ref('dashboard'); // 'dashboard' | 'kanban' | 'weekplan' | 'studiewijzer' | 'config'
+
+// Reset all drill-down filters to defaults
+function resetFilters() {
+  filters.rooster = true;
+  filters.huistaken = true;
+  filters.ongepland = true;
+  filters.gepland = true;
+  filters.klaar = true;
+  filters.ingediend = true;
+  filters.alleenOngepland = false;
+  filters.vandaag = false;
+  filters.overdue = false;
+  filters.inTeDienen = false;
+  filters.conflict = false;
+  filters._kanbanFocus = null;
+}
 
 // ---- Export ----
 
@@ -750,7 +769,9 @@ export function usePlanner() {
     isEigenaar,
     wpViewMode,
     wpFocusDag,
+    wpFocusBlok,
     activeView,
+    resetFilters,
     taakId,
     init,
     importRaw,

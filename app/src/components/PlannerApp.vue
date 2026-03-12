@@ -447,7 +447,7 @@ onUnmounted(() => {
 .subtitel {
   font-size: 0.8rem;
   color: var(--clr-text-muted);
-  margin-top: -0.1rem;
+  margin-top: 0.1rem;
 }
 
 /* ---- Toolbar ---- */

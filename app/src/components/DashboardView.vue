@@ -9,7 +9,7 @@
     <!-- Grafieken naast elkaar -->
     <div class="db-charts">
       <div class="db-chart">
-        <WeekGrid compact />
+        <WeekGrid compact @cel-click="gaNaarDag" />
       </div>
       <div class="db-chart">
         <BurndownChart :show-labels="false" fill />
@@ -23,31 +23,37 @@
         <span class="db-stat-count db-count-ingediend">{{ ingediendCount }}</span>
         <span class="db-stat-label">ingediend</span>
         <span class="db-stat-min db-min-ingediend">{{ ingediendMin }}'</span>
+        <button v-if="!isMobile" class="db-stat-link" @click="gaNaarIngediend" title="Bekijk in kanban"><Icon icon="mdi:arrow-right-circle-outline" width="16" height="16" /></button>
       </div>
       <div v-if="klaarCount" class="db-stat">
         <span class="db-stat-count db-count-klaar">{{ klaarCount }}</span>
         <span class="db-stat-label">klaar</span>
         <span class="db-stat-min db-min-klaar">{{ klaarMin }}'</span>
+        <button v-if="!isMobile" class="db-stat-link" @click="gaNaarKlaar" title="Bekijk in te dienen"><Icon icon="mdi:arrow-right-circle-outline" width="16" height="16" /></button>
       </div>
       <div class="db-stat">
         <span class="db-stat-count db-count-blauw">{{ geplandCount }}</span>
         <span class="db-stat-label">gepland</span>
         <span class="db-stat-min db-min-blauw">{{ geplandMin }}'</span>
+        <button v-if="!isMobile" class="db-stat-link" @click="gaNaarGepland" title="Bekijk in kanban"><Icon icon="mdi:arrow-right-circle-outline" width="16" height="16" /></button>
       </div>
       <div v-if="overdueCount" class="db-stat">
         <span class="db-stat-count db-count-oranje">{{ overdueCount }}</span>
         <span class="db-stat-label">overdue</span>
         <span class="db-stat-min db-min-oranje">{{ overdueMin }}'</span>
+        <button v-if="!isMobile" class="db-stat-link" @click="gaNaarOverdue" title="Bekijk overdue taken"><Icon icon="mdi:arrow-right-circle-outline" width="16" height="16" /></button>
       </div>
       <div v-if="ongeplandCount" class="db-stat">
         <span class="db-stat-count db-count-rood">{{ ongeplandCount }}</span>
         <span class="db-stat-label">niet ingepland</span>
         <span class="db-stat-min db-min-rood">{{ ongeplandMin }}'</span>
+        <button v-if="!isMobile" class="db-stat-link" @click="gaNaarOngepland" title="Bekijk in weekplanner"><Icon icon="mdi:arrow-right-circle-outline" width="16" height="16" /></button>
       </div>
       <div class="db-stat db-stat-totaal">
         <span class="db-stat-count">{{ totaalCount }}</span>
         <span class="db-stat-label"></span>
         <span class="db-stat-min">{{ totaalMin }}'</span>
+        <span v-if="!isMobile" class="db-stat-link-spacer"></span>
       </div>
     </div>
 
@@ -129,18 +135,68 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue';
+import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 import WeekGrid from './WeekGrid.vue';
 import BurndownChart from './BurndownChart.vue';
 
-const { alleTaken, state, updateVoortgang, filters, activeView } = usePlanner();
+const { alleTaken, state, updateVoortgang, filters, activeView, resetFilters, wpViewMode, wpFocusDag, wpFocusBlok } = usePlanner();
 
 const isMobile = ref(window.innerWidth <= 700);
 
 function gaNaarInTeDienen() {
   if (isMobile.value) return;
+  resetFilters();
   filters.inTeDienen = true;
   activeView.value = 'kanban';
+}
+
+function gaNaarIngediend() {
+  if (isMobile.value) return;
+  resetFilters();
+  filters.inTeDienen = false;
+  // Focus on ingediend column (idx 3) — we use a temporary marker
+  filters._kanbanFocus = 3;
+  activeView.value = 'kanban';
+}
+
+function gaNaarKlaar() {
+  if (isMobile.value) return;
+  resetFilters();
+  filters.inTeDienen = true;
+  activeView.value = 'kanban';
+}
+
+function gaNaarGepland() {
+  if (isMobile.value) return;
+  resetFilters();
+  filters._kanbanFocus = 0;
+  activeView.value = 'kanban';
+}
+
+function gaNaarOverdue() {
+  if (isMobile.value) return;
+  resetFilters();
+  filters.overdue = true;
+  filters._kanbanFocus = 0;
+  activeView.value = 'kanban';
+}
+
+function gaNaarOngepland() {
+  if (isMobile.value) return;
+  resetFilters();
+  filters.alleenOngepland = true;
+  activeView.value = 'weekplan';
+  wpViewMode.value = 'week';
+}
+
+function gaNaarDag({ dag, uur }) {
+  if (dag === '_') return; // ongepland row
+  resetFilters();
+  wpFocusDag.value = dag;
+  wpFocusBlok.value = uur * 4; // uur (0-based) → blok (15-min slot)
+  wpViewMode.value = 'dag';
+  activeView.value = 'weekplan';
 }
 
 const open = reactive({ gisteren: true, vandaag: false, rest: false });
@@ -288,6 +344,17 @@ function toggleKlaar(taak) {
   max-width: none;
   padding: 0;
 }
+.db-chart :deep(.wg-cel) {
+  cursor: pointer;
+}
+.db-chart :deep(.wg-cel:hover) {
+  opacity: 0.7;
+}
+/* Override tooltip position: show above instead of below on dashboard */
+.db-chart :deep([data-tooltip-pos="bottom"])::after {
+  bottom: calc(100% + 6px);
+  top: auto;
+}
 
 @media (max-width: 700px) {
   .db-charts {
@@ -385,6 +452,28 @@ function toggleKlaar(taak) {
 .db-min-blauw { color: #93c5fd; }
 .db-min-rood { color: #f87171; }
 .db-min-oranje { color: #fbbf24; }
+.db-stat-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 0 0.25rem;
+  cursor: pointer;
+  color: var(--clr-text-muted);
+  opacity: 0.4;
+  transition: opacity 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.db-stat-link:hover {
+  opacity: 1;
+  color: var(--clr-accent, #6366f1);
+}
+.db-stat-link-spacer {
+  width: 16px;
+  margin: 0 0 0 0.25rem;
+  flex-shrink: 0;
+}
 .db-stat-totaal {
   border-top: 1px solid var(--clr-border);
   margin-top: 0.15rem;

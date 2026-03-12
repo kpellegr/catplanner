@@ -272,7 +272,7 @@ import { hoofdgroepClass, formatDuur as _formatDuur, duurTooltip as _duurTooltip
 import TakenPool from './TakenPool.vue';
 import FilterBar from './FilterBar.vue';
 
-const { state, alleTaken, planTaak, updateVoortgang, isReadOnly, wpViewMode, wpFocusDag, selectedTaakId, selectTaak: globalSelectTaak, filters } = usePlanner();
+const { state, alleTaken, planTaak, updateVoortgang, isReadOnly, wpViewMode, wpFocusDag, wpFocusBlok, selectedTaakId, selectTaak: globalSelectTaak, filters } = usePlanner();
 
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
@@ -1252,7 +1252,23 @@ onMounted(() => {
   nowTimer = setInterval(() => { now.value = new Date(); }, 60000);
   // Set focusDag to today only on first visit
   if (!focusDag.value && vandaagDag.value) focusDag.value = vandaagDag.value;
-  nextTick(measureScrollbar);
+  nextTick(() => {
+    measureScrollbar();
+    // Scroll to target block if set (e.g. from dashboard click)
+    if (wpFocusBlok.value !== null) {
+      const targetPx = wpFocusBlok.value * BLOK_PX.value;
+      wpFocusBlok.value = null; // consume
+      if (timelineRowRef.value) {
+        timelineRowRef.value.scrollTop = 0;
+        requestAnimationFrame(() => {
+          timelineRowRef.value?.scrollTo({
+            top: Math.max(0, targetPx - 60),
+            behavior: 'smooth',
+          });
+        });
+      }
+    }
+  });
   window.addEventListener('resize', measureScrollbar);
 });
 onUnmounted(() => {

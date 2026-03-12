@@ -1,32 +1,39 @@
 <template>
-  <div class="wg" :class="{ 'wg-mini': mini }">
+  <div class="wg">
     <!-- Grid: 8 rijen x 14 uur-blokken -->
     <div class="wg-grid">
       <!-- Uur labels bovenaan -->
-      <div v-if="!compact && !mini" class="wg-row wg-uur-row">
+      <div v-if="!compact" class="wg-row wg-uur-row">
         <div class="wg-dag-cell"></div>
-        <div v-for="u in 14" :key="'u'+u" class="wg-uur-label">{{ uurLabel(u - 1) }}</div>
+        <div class="wg-cells-area">
+          <div v-for="u in 14" :key="'u'+u" class="wg-uur-label">{{ uurLabel(u - 1) }}</div>
+        </div>
         <div class="wg-label-cell"></div>
       </div>
 
       <!-- Per dag/ongepland een rij -->
       <div v-for="kol in kolommen" :key="kol.key" class="wg-row">
-        <div v-if="!mini" class="wg-dag-cell" :class="{ 'wg-vandaag': kol.key === vandaagDag, 'wg-ongepland-dag': kol.key === '_' }">
+        <div class="wg-dag-cell" :class="{ 'wg-vandaag': kol.key === vandaagDag, 'wg-ongepland-dag': kol.key === '_' }">
           {{ kol.label }}
         </div>
-        <div
-          v-for="u in 14"
-          :key="u"
-          class="wg-cel"
-          :class="uurClass(kol.key, u - 1)"
-          :data-tooltip="uurTooltip(kol.key, u - 1)" data-tooltip-pos="bottom"
-        ></div>
-        <div v-if="!mini && !compact" class="wg-label-cell" :class="kol.minClass">{{ kol.minLabel }}</div>
+        <div class="wg-cells-area">
+          <div
+            v-for="u in 14"
+            :key="u"
+            class="wg-cel"
+            :class="uurClass(kol.key, u - 1)"
+            :data-tooltip="uurTooltip(kol.key, u - 1)" data-tooltip-pos="bottom"
+            @click="emit('cel-click', { dag: kol.key, uur: u - 1 })"
+          ></div>
+          <!-- "Nu" marker op vandaag-rij -->
+          <div v-if="kol.key === vandaagDag && nuPct !== null" class="wg-nu-marker" :style="{ left: nuPct }"></div>
+        </div>
+        <div v-if="!compact" class="wg-label-cell" :class="kol.minClass">{{ kol.minLabel }}</div>
       </div>
     </div>
 
     <!-- Footer -->
-    <div v-if="!mini && !compact" class="wg-footer">
+    <div v-if="!compact" class="wg-footer">
       <div class="wg-legende">
         <span><span class="wg-dot klaar"></span>klaar</span>
         <span><span class="wg-dot gemist"></span>overdue</span>
@@ -47,8 +54,9 @@ import { usePlanner } from '../stores/planner.js';
 
 const props = defineProps({
   compact: { type: Boolean, default: false },
-  mini: { type: Boolean, default: false },
 });
+
+const emit = defineEmits(['cel-click']);
 
 const { alleTaken, state } = usePlanner();
 
@@ -69,6 +77,24 @@ function uurLabel(uurIdx) {
   const h = 8 + Math.floor((30 + uurIdx * 60) / 60);
   return `${h}`;
 }
+
+// "Nu" marker: fractional position within the 14 cells
+const nuPct = computed(() => {
+  const minSince830 = (now.getHours() * 60 + now.getMinutes()) - (8 * 60 + 30);
+  if (minSince830 < 0 || minSince830 >= 14 * 60) return null; // buiten rooster
+  const frac = minSince830 / (14 * 60); // 0..1 across 14 hours
+  // Position: frac * 14 cells worth of (cell + gap) minus last gap
+  // Each cell = (100% - 13*3px) / 14; gap = 3px
+  // Position = cellIdx * (cellWidth + gap) + fracInCell * cellWidth
+  // Simplified: calc(frac * 100% + frac * 3px - frac * 3px/14 * 13)
+  // Actually simpler: use calc with the fractional cell index
+  const cellIdx = frac * 14; // e.g. 5.5 = halfway through cell 5
+  const fullCells = Math.floor(cellIdx);
+  const fracInCell = cellIdx - fullCells;
+  // left = fullCells * (cellWidth + gap) + fracInCell * cellWidth
+  // cellWidth = (100% - 13 * 3px) / 14
+  return `calc(${fullCells} * (100% - 13 * 3px) / 14 + ${fullCells} * 3px + ${fracInCell} * (100% - 13 * 3px) / 14)`;
+});
 
 // Laag 1: weekrooster (les/bezet/vrij)
 const roosterMap = computed(() => {
@@ -310,6 +336,15 @@ const verdictText = computed(() => {
 .wg-min-groen { color: var(--clr-klaar); }
 .wg-min-oranje { color: #ef4444; }
 
+/* Cells wrapper (for "nu" marker positioning) */
+.wg-cells-area {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+  position: relative;
+}
+
 /* Uur-blokken */
 .wg-cel {
   flex: 1;
@@ -317,6 +352,18 @@ const verdictText = computed(() => {
   aspect-ratio: 1;
   border-radius: 3px;
   transition: opacity 0.15s;
+}
+
+/* "Nu" indicator */
+.wg-nu-marker {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: #ef4444;
+  border-radius: 1px;
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* Kleuren: soft pastel palette */
@@ -374,11 +421,4 @@ const verdictText = computed(() => {
 .wg-verdict-groen { border-left-color: var(--clr-klaar); background: #ecfdf5; color: #059669; }
 
 /* Mini mode: tiny heatmap for header */
-.wg-mini { padding: 0; }
-.wg-mini .wg-row { gap: 1px; margin-bottom: 1px; }
-.wg-mini .wg-cel {
-  width: 5px;
-  height: 5px;
-  border-radius: 1px;
-}
 </style>
