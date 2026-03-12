@@ -188,6 +188,8 @@
         :plannerId="state.plannerId"
         @sluit="showDeel = false"
       />
+
+      <DopamineKat ref="dopamineKatRef" :debug="isDev" />
     </template>
   </div>
 </template>
@@ -208,6 +210,7 @@ import ConfiguratieView from './ConfiguratieView.vue';
 import StudiewijzerView from './StudiewijzerView.vue';
 import DashboardView from './DashboardView.vue';
 import DagMobileView from './DagMobileView.vue';
+import DopamineKat from './DopamineKat.vue';
 
 const props = defineProps({
   plannerId: { type: String, default: null },
@@ -227,6 +230,7 @@ const notifBelRef = ref(null);
 const showDeel = ref(false);
 const showProfile = ref(false);
 const showMobileMenu = ref(false);
+const dopamineKatRef = ref(null);
 const allPlanners = ref([]);
 const isMobile = ref(window.innerWidth <= 700);
 

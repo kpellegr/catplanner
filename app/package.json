@@ -11,6 +11,7 @@
   "dependencies": {
     "@iconify/vue": "^5.0.0",
     "@supabase/supabase-js": "^2.99.0",
+    "lottie-web": "^5.13.0",
     "vue": "^3.5.25",
     "vue-router": "^5.0.3",
     "vuedraggable": "^4.1.0"

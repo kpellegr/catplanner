@@ -272,7 +272,7 @@ import { hoofdgroepClass, formatDuur as _formatDuur, duurTooltip as _duurTooltip
 import TakenPool from './TakenPool.vue';
 import FilterBar from './FilterBar.vue';
 
-const { state, alleTaken, planTaak, updateVoortgang, isReadOnly, wpViewMode, wpFocusDag, wpFocusBlok, selectedTaakId, selectTaak: globalSelectTaak, filters } = usePlanner();
+const { state, alleTaken, planTaak, updateVoortgang, isReadOnly, wpViewMode, wpFocusDag, wpFocusBlok, selectedTaakId, selectTaak: globalSelectTaak, filters, dopamineEvent } = usePlanner();
 
 const dagen = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo'];
 const dagKort = { ma: 'MA', di: 'DI', wo: 'WO', do: 'DO', vr: 'VR', za: 'ZA', zo: 'ZO' };
@@ -1174,15 +1174,26 @@ async function resetWeekplan() {
 
 // ---- Toggle klaar ----
 
+function fireDopamine(taakId, type) {
+  const el = [...document.querySelectorAll('[data-taak-id]')].find(e => e.dataset.taakId === taakId);
+  const pos = el
+    ? (() => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()
+    : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  dopamineEvent.value = { ...pos, type };
+}
+
 function toggleKlaar(taak) {
   if (isReadOnly.value) return;
   const newStatus = taak.voortgang.status === 'klaar' ? 'open' : 'klaar';
   updateVoortgang(taak.id, { status: newStatus });
+  if (newStatus === 'klaar') fireDopamine(taak.id, 'klaar');
 }
 
 function cycleStatus(taak, newStatus) {
   if (isReadOnly.value) return;
   updateVoortgang(taak.id, { status: newStatus });
+  if (newStatus === 'klaar') fireDopamine(taak.id, 'klaar');
+  else if (newStatus === 'ingediend') fireDopamine(taak.id, 'ingediend');
 }
 
 // ---- Resize (manual duration) ----

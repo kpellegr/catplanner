@@ -738,6 +738,9 @@ const wpFocusDag = ref(null);     // 'ma'..'zo', null = vandaag
 const wpFocusBlok = ref(null);    // blok index (0-based 15-min slot) or null
 const activeView = ref('dashboard'); // 'dashboard' | 'kanban' | 'weekplan' | 'studiewijzer' | 'config'
 
+// Dopamine event signal: { x, y } screen coords of last task completion (consumed by DopamineKat)
+const dopamineEvent = ref(null);
+
 // Reset all drill-down filters to defaults
 function resetFilters() {
   filters.rooster = true;
@@ -771,6 +774,7 @@ export function usePlanner() {
     wpFocusDag,
     wpFocusBlok,
     activeView,
+    dopamineEvent,
     resetFilters,
     taakId,
     init,

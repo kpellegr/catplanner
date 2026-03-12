@@ -74,7 +74,7 @@
                 <template v-if="taak.tijd?.type === 'minuten'">{{ taakMin(taak) }}'</template>
                 <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
               </span>
-              <span class="db-taak-status" :class="'db-status-' + statusLabel(taak, true).cls" @click.stop="toggleKlaar(taak)">{{ statusLabel(taak, true).text }}</span>
+              <span class="db-taak-status" :class="'db-status-' + statusLabel(taak, true).cls" @click.stop="toggleKlaar(taak, $event)">{{ statusLabel(taak, true).text }}</span>
             </span>
           </div>
           <div class="db-taak-omschrijving">{{ taak.omschrijving }}</div>
@@ -99,7 +99,7 @@
                 <template v-if="taak.tijd?.type === 'minuten'">{{ taakMin(taak) }}'</template>
                 <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
               </span>
-              <span class="db-taak-status" :class="'db-status-' + statusLabel(taak, false).cls" @click.stop="toggleKlaar(taak)">{{ statusLabel(taak, false).text }}</span>
+              <span class="db-taak-status" :class="'db-status-' + statusLabel(taak, false).cls" @click.stop="toggleKlaar(taak, $event)">{{ statusLabel(taak, false).text }}</span>
             </span>
           </div>
           <div class="db-taak-omschrijving">{{ taak.omschrijving }}</div>
@@ -123,7 +123,7 @@
                 <template v-if="taak.tijd?.type === 'minuten'">{{ taakMin(taak) }}'</template>
                 <template v-else-if="taak.tijd?.type === 'rooster'">R</template>
               </span>
-              <span class="db-taak-status" :class="'db-status-' + statusLabel(taak, false).cls" @click.stop="toggleKlaar(taak)">{{ statusLabel(taak, false).text }}</span>
+              <span class="db-taak-status" :class="'db-status-' + statusLabel(taak, false).cls" @click.stop="toggleKlaar(taak, $event)">{{ statusLabel(taak, false).text }}</span>
             </span>
           </div>
           <div class="db-taak-omschrijving">{{ taak.omschrijving }}</div>
@@ -140,7 +140,7 @@ import { usePlanner } from '../stores/planner.js';
 import WeekGrid from './WeekGrid.vue';
 import BurndownChart from './BurndownChart.vue';
 
-const { alleTaken, state, updateVoortgang, filters, activeView, resetFilters, wpViewMode, wpFocusDag, wpFocusBlok } = usePlanner();
+const { alleTaken, state, updateVoortgang, filters, activeView, resetFilters, wpViewMode, wpFocusDag, wpFocusBlok, dopamineEvent } = usePlanner();
 
 const isMobile = ref(window.innerWidth <= 700);
 
@@ -315,9 +315,16 @@ function taakClass(taak, isVerleden) {
   return 'db-taak-huiswerk';
 }
 
-function toggleKlaar(taak) {
+function toggleKlaar(taak, event) {
   const nieuw = isKlaar(taak) ? 'open' : 'klaar';
   updateVoortgang(taak.id, { status: nieuw });
+  if (nieuw === 'klaar') {
+    const rect = event?.target?.getBoundingClientRect?.();
+    const pos = rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    dopamineEvent.value = { ...pos, type: 'klaar' };
+  }
 }
 </script>
 

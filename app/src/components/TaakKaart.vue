@@ -16,6 +16,7 @@
         expanded: compact && isExpanded,
       }
     ]"
+    :data-taak-id="taak.id"
     :draggable="draggable"
     @dragstart="$emit('dragstart', $event, taak)"
     @dragend="$emit('dragend', $event)"

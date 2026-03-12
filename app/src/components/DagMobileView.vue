@@ -48,7 +48,7 @@
                 <template v-if="item.taak.tijd?.type === 'rooster'">R</template>
                 <template v-else>{{ taakMinuten(item.taak) }}'</template>
               </span>
-              <span class="dm-taak-status" :class="'dm-status-' + statusLabel(item.taak).cls" @click.stop="toggleKlaar(item.taak)">{{ statusLabel(item.taak).text }}</span>
+              <span class="dm-taak-status" :class="'dm-status-' + statusLabel(item.taak).cls" @click.stop="toggleKlaar(item.taak, $event)">{{ statusLabel(item.taak).text }}</span>
             </span>
           </div>
           <div class="dm-taak-omschrijving">{{ item.taak.omschrijving }}</div>
@@ -91,7 +91,7 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
 import { usePlanner } from '../stores/planner.js';
 
-const { alleTaken, state, updateVoortgang, wpFocusDag, wpFocusBlok } = usePlanner();
+const { alleTaken, state, updateVoortgang, wpFocusDag, wpFocusBlok, dopamineEvent } = usePlanner();
 
 const scheduleRef = ref(null);
 
@@ -318,9 +318,16 @@ function taakClass(taak) {
   return 'dm-taak-huiswerk';
 }
 
-function toggleKlaar(taak) {
+function toggleKlaar(taak, event) {
   const nieuw = isKlaar(taak) ? 'open' : 'klaar';
   updateVoortgang(taak.id, { status: nieuw });
+  if (nieuw === 'klaar') {
+    const rect = event?.target?.getBoundingClientRect?.();
+    const pos = rect
+      ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    dopamineEvent.value = { ...pos, type: 'klaar' };
+  }
 }
 </script>
 

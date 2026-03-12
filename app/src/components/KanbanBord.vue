@@ -158,7 +158,7 @@ import { hoofdgroepClass, formatDuur, duurTooltip, flagTooltip, flagTooltips, us
 import TaakKaart from './TaakKaart.vue';
 import FilterBar from './FilterBar.vue';
 
-const { alleTaken, updateVoortgang, editTaak, addEigenTaak, removeEigenTaak, editEigenTaak, isReadOnly, selectedTaakId, selectTaak, filters } = usePlanner();
+const { alleTaken, updateVoortgang, editTaak, addEigenTaak, removeEigenTaak, editEigenTaak, isReadOnly, selectedTaakId, selectTaak, filters, dopamineEvent } = usePlanner();
 
 onMounted(() => {
   // Navigation hints from dashboard or other views
@@ -462,16 +462,28 @@ function dragLeaveCel(e, vak, status) {
   }
 }
 
+function fireDopamine(taakId, type) {
+  // Find the card element by data attribute (safe for special chars in IDs)
+  const el = document.querySelector('.kanban-kaart.is-selected')
+    || [...document.querySelectorAll('.kanban-kaart')].find(e => e.dataset.taakId === taakId);
+  const pos = el
+    ? (() => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()
+    : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  dopamineEvent.value = { ...pos, type };
+  if (type === 'ingediend') fireConfetti();
+}
+
 function toggleKlaar(taak) {
   const isKlaar = taak.voortgang.status === 'klaar' || taak.voortgang.status === 'ingediend';
   const newStatus = isKlaar ? 'open' : 'klaar';
   updateVoortgang(taak.id, { status: newStatus });
-  if (newStatus === 'klaar') fireConfetti();
+  if (newStatus === 'klaar') fireDopamine(taak.id, 'klaar');
 }
 
 function cycleStatus(taak, newStatus) {
   updateVoortgang(taak.id, { status: newStatus });
-  if (newStatus === 'klaar' || newStatus === 'ingediend') fireConfetti();
+  if (newStatus === 'klaar') fireDopamine(taak.id, 'klaar');
+  else if (newStatus === 'ingediend') fireDopamine(taak.id, 'ingediend');
 }
 
 function drop(e, status) {
@@ -484,9 +496,8 @@ function drop(e, status) {
 
   updateVoortgang(taak.id, { status });
 
-  if (status === 'klaar' || status === 'ingediend') {
-    fireConfetti();
-  }
+  if (status === 'klaar') fireDopamine(taak.id, 'klaar');
+  else if (status === 'ingediend') fireDopamine(taak.id, 'ingediend');
 }
 
 // ---- Confetti ----
