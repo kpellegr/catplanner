@@ -1,5 +1,11 @@
 <template>
   <div class="db">
+    <!-- Nog in te dienen -->
+    <div v-if="nogInTeDienenCount" class="db-alert" :class="{ 'db-alert-link': !isMobile }" @click="gaNaarInTeDienen">
+      <span class="db-alert-count">{{ nogInTeDienenCount }}</span>
+      <span class="db-alert-text">{{ nogInTeDienenCount === 1 ? 'taak' : 'taken' }} klaar maar nog niet ingediend</span>
+    </div>
+
     <!-- Week grid -->
     <div class="db-section">
       <WeekGrid compact />
@@ -12,9 +18,14 @@
 
     <!-- Status samenvatting -->
     <div class="db-stats">
-      <div class="db-stat">
+      <div v-if="ingediendCount" class="db-stat">
+        <span class="db-stat-count db-count-ingediend">{{ ingediendCount }}</span>
+        <span class="db-stat-label">ingediend</span>
+        <span class="db-stat-min db-min-ingediend">{{ ingediendMin }}'</span>
+      </div>
+      <div v-if="klaarCount" class="db-stat">
         <span class="db-stat-count db-count-klaar">{{ klaarCount }}</span>
-        <span class="db-stat-label">afgewerkt</span>
+        <span class="db-stat-label">klaar</span>
         <span class="db-stat-min db-min-klaar">{{ klaarMin }}'</span>
       </div>
       <div class="db-stat">
@@ -116,12 +127,20 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { usePlanner } from '../stores/planner.js';
 import WeekGrid from './WeekGrid.vue';
 import BurndownChart from './BurndownChart.vue';
 
-const { alleTaken, state, updateVoortgang } = usePlanner();
+const { alleTaken, state, updateVoortgang, filters, activeView } = usePlanner();
+
+const isMobile = ref(window.innerWidth <= 700);
+
+function gaNaarInTeDienen() {
+  if (isMobile.value) return;
+  filters.inTeDienen = true;
+  activeView.value = 'kanban';
+}
 
 const open = reactive({ gisteren: true, vandaag: false, rest: false });
 
@@ -150,12 +169,19 @@ function isDagVerleden(dag) {
   return dagen.indexOf(dag) < vandaagIdx;
 }
 
+const ingediendCount = computed(() =>
+  alleTaken.value.filter(t => t.voortgang.status === 'ingediend').length
+);
+const ingediendMin = computed(() =>
+  alleTaken.value.filter(t => t.voortgang.status === 'ingediend').reduce((s, t) => s + taakMin(t), 0)
+);
 const klaarCount = computed(() =>
-  alleTaken.value.filter(isKlaar).length
+  alleTaken.value.filter(t => t.voortgang.status === 'klaar').length
 );
 const klaarMin = computed(() =>
-  alleTaken.value.filter(isKlaar).reduce((s, t) => s + taakMin(t), 0)
+  alleTaken.value.filter(t => t.voortgang.status === 'klaar').reduce((s, t) => s + taakMin(t), 0)
 );
+const nogInTeDienenCount = computed(() => klaarCount.value);
 const totaalMin = computed(() =>
   alleTaken.value.reduce((s, t) => s + taakMin(t), 0)
 );
@@ -214,15 +240,16 @@ function shortVak(taak) {
 }
 
 function statusLabel(taak, isVerleden) {
+  if (taak.voortgang.status === 'ingediend') return { text: 'INGEDIEND', cls: 'ingediend' };
   if (taak.voortgang.status === 'klaar') return { text: 'KLAAR', cls: 'klaar' };
-  if (taak.voortgang.status === 'ingediend') return { text: 'INGEDIEND', cls: 'klaar' };
   if (taak.voortgang.status === 'bezig') return { text: 'BEZIG', cls: 'bezig' };
   if (isVerleden || (taak.geplandOp && isDagVerleden(taak.geplandOp))) return { text: 'OVER DUE', cls: 'gemist' };
   return { text: 'OPEN', cls: 'open' };
 }
 
 function taakClass(taak, isVerleden) {
-  if (isKlaar(taak)) return 'db-taak-klaar';
+  if (taak.voortgang.status === 'ingediend') return 'db-taak-ingediend';
+  if (taak.voortgang.status === 'klaar') return 'db-taak-klaar';
   if (isVerleden || (taak.geplandOp && isDagVerleden(taak.geplandOp))) return 'db-taak-gemist';
   if (taak.tijd?.type === 'rooster') return 'db-taak-rooster';
   return 'db-taak-huiswerk';
@@ -238,6 +265,36 @@ function toggleKlaar(taak) {
 .db {
   max-width: 560px;
   margin: 0 auto;
+}
+
+/* Alert: nog in te dienen */
+.db-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  margin-bottom: 0.5rem;
+  background: #fffbeb;
+  border: 1px solid #fbbf24;
+  border-radius: 0.4rem;
+}
+.db-alert-count {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #b45309;
+}
+.db-alert-text {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #92400e;
+}
+.db-alert-link {
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.db-alert-link:hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
 }
 
 /* Sections */
@@ -269,7 +326,8 @@ function toggleKlaar(taak) {
   min-width: 1.4em;
   text-align: center;
 }
-.db-count-klaar { color: #059669; }
+.db-count-ingediend { color: #059669; }
+.db-count-klaar { color: #6ee7b7; }
 .db-count-blauw { color: #93c5fd; }
 .db-count-rood { color: #ef4444; }
 .db-count-oranje { color: #d97706; }
@@ -284,7 +342,8 @@ function toggleKlaar(taak) {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
-.db-min-klaar { color: #059669; }
+.db-min-ingediend { color: #059669; }
+.db-min-klaar { color: #6ee7b7; }
 .db-min-blauw { color: #93c5fd; }
 .db-min-rood { color: #ef4444; }
 .db-min-oranje { color: #d97706; }
@@ -343,9 +402,14 @@ function toggleKlaar(taak) {
   background: white;
   margin: 2px 0;
 }
-.db-taak-klaar {
-  border-left-color: #10b981;
+.db-taak-ingediend {
+  border-left-color: #059669;
   opacity: 0.5;
+}
+.db-taak-klaar {
+  border-left-color: #6ee7b7;
+  border-left-style: dashed;
+  opacity: 0.7;
 }
 .db-taak-gemist {
   border-left-color: #d97706;
@@ -381,9 +445,13 @@ function toggleKlaar(taak) {
   white-space: nowrap;
   min-width: 0;
 }
+.db-taak-ingediend .db-taak-omschrijving {
+  text-decoration: line-through;
+  text-decoration-color: #059669;
+}
 .db-taak-klaar .db-taak-omschrijving {
   text-decoration: line-through;
-  text-decoration-color: #10b981;
+  text-decoration-color: #6ee7b7;
 }
 
 /* Duur */
@@ -408,9 +476,13 @@ function toggleKlaar(taak) {
 .db-taak-status:active {
   opacity: 0.6;
 }
-.db-status-klaar {
+.db-status-ingediend {
   color: #059669;
   background: #ecfdf5;
+}
+.db-status-klaar {
+  color: #6ee7b7;
+  background: #f0fdf9;
 }
 .db-status-bezig {
   color: #b45309;

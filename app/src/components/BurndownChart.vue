@@ -375,4 +375,8 @@ const gapData = computed(() => {
 .bd-legend-gap::before {
   background: #ef4444;
 }
+
+@media (max-width: 700px) {
+  .bd-legend { display: none; }
+}
 </style>

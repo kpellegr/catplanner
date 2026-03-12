@@ -161,6 +161,10 @@ import FilterBar from './FilterBar.vue';
 const { alleTaken, updateVoortgang, editTaak, addEigenTaak, removeEigenTaak, editEigenTaak, isReadOnly, selectedTaakId, selectTaak, filters } = usePlanner();
 
 onMounted(() => {
+  // Als inTeDienen filter actief is, focus op kolom klaar+ingediend
+  if (filters.inTeDienen) {
+    focusKolomIdx.value = 2; // klaar kolom → paar met ingediend (idx 3)
+  }
   if (selectedTaakId.value) {
     nextTick(() => {
       const el = document.querySelector('.kanban-kaart.is-selected');
