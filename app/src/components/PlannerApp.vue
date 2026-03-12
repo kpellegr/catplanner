@@ -131,9 +131,9 @@
           <Icon icon="mdi:view-day-outline" width="22" height="22" />
           <span>Dag</span>
         </button>
-        <button :class="{ active: view === 'kanban' }" @click="setView('kanban')">
-          <Icon icon="mdi:view-week" width="22" height="22" />
-          <span>Kanban</span>
+        <button :class="{ active: view === 'studiewijzer' }" @click="setView('studiewijzer')">
+          <Icon icon="mdi:book-open-page-variant-outline" width="22" height="22" />
+          <span>Wijzer</span>
         </button>
         <button :class="{ active: showMobileMenu }" @click.stop="showMobileMenu = !showMobileMenu">
           <Icon icon="mdi:menu" width="22" height="22" />
@@ -155,6 +155,10 @@
             </div>
           </div>
           <div class="mobile-menu-items">
+            <button @click="showMobileMenu = false; setView('kanban')">
+              <Icon icon="mdi:view-week" width="18" height="18" />
+              Kanban
+            </button>
             <button @click="showMobileMenu = false; toggleNotif()">
               <Icon icon="mdi:bell-outline" width="18" height="18" />
               Meldingen
