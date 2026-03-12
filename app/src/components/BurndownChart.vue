@@ -97,6 +97,7 @@
       <span class="bd-legend-ideal">ideaal</span>
       <span class="bd-legend-planned">gepland</span>
       <span class="bd-legend-actual">afgewerkt</span>
+      <span class="bd-legend-gap">niet gepland</span>
     </div>
   </div>
 </template>
@@ -370,5 +371,8 @@ const gapData = computed(() => {
 .bd-legend-actual::before {
   background: #10b981;
   height: 3px;
+}
+.bd-legend-gap::before {
+  background: #ef4444;
 }
 </style>

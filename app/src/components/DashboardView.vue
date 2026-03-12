@@ -23,14 +23,14 @@
         <span class="db-stat-min db-min-blauw">{{ geplandMin }}'</span>
       </div>
       <div v-if="overdueCount" class="db-stat">
-        <span class="db-stat-count db-count-rood">{{ overdueCount }}</span>
-        <span class="db-stat-label">achterstallig</span>
-        <span class="db-stat-min db-min-rood">{{ overdueMin }}'</span>
+        <span class="db-stat-count db-count-oranje">{{ overdueCount }}</span>
+        <span class="db-stat-label">over due</span>
+        <span class="db-stat-min db-min-oranje">{{ overdueMin }}'</span>
       </div>
       <div v-if="ongeplandCount" class="db-stat">
-        <span class="db-stat-count db-count-oranje">{{ ongeplandCount }}</span>
+        <span class="db-stat-count db-count-rood">{{ ongeplandCount }}</span>
         <span class="db-stat-label">niet ingepland</span>
-        <span class="db-stat-min db-min-oranje">{{ ongeplandMin }}'</span>
+        <span class="db-stat-min db-min-rood">{{ ongeplandMin }}'</span>
       </div>
       <div class="db-stat db-stat-totaal">
         <span class="db-stat-count">{{ totaalCount }}</span>
@@ -217,7 +217,7 @@ function statusLabel(taak, isVerleden) {
   if (taak.voortgang.status === 'klaar') return { text: 'KLAAR', cls: 'klaar' };
   if (taak.voortgang.status === 'ingediend') return { text: 'INGEDIEND', cls: 'klaar' };
   if (taak.voortgang.status === 'bezig') return { text: 'BEZIG', cls: 'bezig' };
-  if (isVerleden || (taak.geplandOp && isDagVerleden(taak.geplandOp))) return { text: 'GEMIST', cls: 'gemist' };
+  if (isVerleden || (taak.geplandOp && isDagVerleden(taak.geplandOp))) return { text: 'OVER DUE', cls: 'gemist' };
   return { text: 'OPEN', cls: 'open' };
 }
 
@@ -348,7 +348,7 @@ function toggleKlaar(taak) {
   opacity: 0.5;
 }
 .db-taak-gemist {
-  border-left-color: #ef4444;
+  border-left-color: #d97706;
 }
 .db-taak-rooster {
   border-left-color: #c4b5fd;
@@ -417,8 +417,8 @@ function toggleKlaar(taak) {
   background: #fffbeb;
 }
 .db-status-gemist {
-  color: #dc2626;
-  background: #fef2f2;
+  color: #b45309;
+  background: #fff7ed;
 }
 .db-status-open {
   color: var(--clr-text-muted);

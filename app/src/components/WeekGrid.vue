@@ -29,7 +29,8 @@
     <div v-if="!mini" class="wg-footer">
       <div class="wg-legende">
         <span><span class="wg-dot klaar"></span>klaar</span>
-        <span><span class="wg-dot gemist"></span>gemist</span>
+        <span><span class="wg-dot gemist"></span>over due</span>
+        <span><span class="wg-dot ongepland"></span>niet gepland</span>
         <span><span class="wg-dot rooster"></span>rooster</span>
         <span><span class="wg-dot huiswerk"></span>huiswerk</span>
         <span><span class="wg-dot les"></span>les</span>
@@ -109,6 +110,7 @@ const takenMap = computed(() => {
     let kleur;
     if (status === 'klaar' || status === 'ingediend') kleur = 'klaar';
     else if (taak.geplandOp && isDagVerleden(taak.geplandOp)) kleur = 'gemist';
+    else if (!taak.geplandOp) kleur = 'ongepland';
     else if (isRooster) kleur = 'rooster';
     else kleur = 'huiswerk';
 
@@ -144,7 +146,7 @@ const takenMap = computed(() => {
 });
 
 // Uur-blok kleur: taken-laag wint over rooster-laag
-const TAAK_PRIO = { gemist: 4, rooster: 3, huiswerk: 2, klaar: 1 };
+const TAAK_PRIO = { ongepland: 5, gemist: 4, rooster: 3, huiswerk: 2, klaar: 1 };
 const ROOSTER_PRIO = { bezet: 2, les: 1 };
 
 function uurClass(kolKey, uurIdx) {
@@ -244,7 +246,7 @@ const verdictText = computed(() => {
   const parts = [];
   if (resterendeMinuten.value > 0) parts.push(`Nog ${formatMin(resterendeMinuten.value)} te gaan`);
   else parts.push('Alles afgewerkt!');
-  if (achterstandMinuten.value > 0) parts.push(`${formatMin(achterstandMinuten.value)} achterstand`);
+  if (achterstandMinuten.value > 0) parts.push(`${formatMin(achterstandMinuten.value)} over due`);
   if (ongeplandCount.value > 0) parts.push(`${ongeplandCount.value} niet ingepland`);
   return parts.join(' · ');
 });
@@ -289,7 +291,7 @@ const verdictText = computed(() => {
   align-items: center;
 }
 .wg-dag-cell.wg-vandaag { color: var(--clr-accent); }
-.wg-dag-cell.wg-ongepland-dag { color: #d97706; }
+.wg-dag-cell.wg-ongepland-dag { color: #ef4444; }
 
 /* Minuten label rechts */
 .wg-label-cell {
@@ -306,7 +308,7 @@ const verdictText = computed(() => {
 }
 .wg-min-rood { color: #ef4444; }
 .wg-min-groen { color: var(--clr-klaar); }
-.wg-min-oranje { color: #d97706; }
+.wg-min-oranje { color: #ef4444; }
 
 /* Uur-blokken */
 .wg-cel {
@@ -320,11 +322,12 @@ const verdictText = computed(() => {
 /* Kleuren: soft pastel palette */
 .wg-cel.vrij { background: #f0f0ee; }
 .wg-cel.klaar { background: #86cfac; }
-.wg-cel.gemist { background: #e07878; }
+.wg-cel.gemist { background: #fbbf24; }
 .wg-cel.rooster { background: #b4a7d6; }
 .wg-cel.huiswerk { background: #7eb8d8; }
 .wg-cel.les { background: #e0ddd6; }
 .wg-cel.bezet { background: #c8c8c8; }
+.wg-cel.ongepland { background: #f87171; }
 
 /* Footer */
 .wg-footer {
@@ -350,11 +353,12 @@ const verdictText = computed(() => {
   margin-right: 2px;
 }
 .wg-dot.klaar { background: #86cfac; }
-.wg-dot.gemist { background: #e07878; }
+.wg-dot.gemist { background: #fbbf24; }
 .wg-dot.rooster { background: #b4a7d6; }
 .wg-dot.huiswerk { background: #7eb8d8; }
 .wg-dot.les { background: #e0ddd6; }
 .wg-dot.bezet { background: #c8c8c8; }
+.wg-dot.ongepland { background: #f87171; }
 .wg-dot.vrij { background: #f0f0ee; border: 1px solid var(--clr-border); }
 
 .wg-verdict {

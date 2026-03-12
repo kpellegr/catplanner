@@ -294,7 +294,7 @@ function statusLabel(taak) {
   if (taak.voortgang.status === 'klaar') return { text: 'KLAAR', cls: 'klaar' };
   if (taak.voortgang.status === 'ingediend') return { text: 'INGEDIEND', cls: 'klaar' };
   if (taak.voortgang.status === 'bezig') return { text: 'BEZIG', cls: 'bezig' };
-  if (taak.geplandOp && isDagVerleden(taak.geplandOp)) return { text: 'GEMIST', cls: 'gemist' };
+  if (taak.geplandOp && isDagVerleden(taak.geplandOp)) return { text: 'OVER DUE', cls: 'gemist' };
   return { text: 'OPEN', cls: 'open' };
 }
 
@@ -425,7 +425,7 @@ function toggleKlaar(taak) {
   opacity: 0.5;
 }
 .dm-taak-gemist {
-  border-left-color: #ef4444;
+  border-left-color: #d97706;
 }
 .dm-taak-rooster {
   border-left-color: #c4b5fd;
@@ -494,8 +494,8 @@ function toggleKlaar(taak) {
   background: #fffbeb;
 }
 .dm-status-gemist {
-  color: #dc2626;
-  background: #fef2f2;
+  color: #b45309;
+  background: #fff7ed;
 }
 .dm-status-open {
   color: var(--clr-text-muted);
