@@ -331,7 +331,7 @@ const verdictText = computed(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-top: 8px;
+  margin-top: 1em;
   flex-wrap: wrap;
 }
 .wg-legende {
