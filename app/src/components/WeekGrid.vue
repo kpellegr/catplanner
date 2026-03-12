@@ -21,15 +21,15 @@
           :class="uurClass(kol.key, u - 1)"
           :data-tooltip="uurTooltip(kol.key, u - 1)" data-tooltip-pos="bottom"
         ></div>
-        <div v-if="!mini" class="wg-label-cell" :class="kol.minClass">{{ kol.minLabel }}</div>
+        <div v-if="!mini && !compact" class="wg-label-cell" :class="kol.minClass">{{ kol.minLabel }}</div>
       </div>
     </div>
 
     <!-- Footer -->
-    <div v-if="!mini" class="wg-footer">
+    <div v-if="!mini && !compact" class="wg-footer">
       <div class="wg-legende">
         <span><span class="wg-dot klaar"></span>klaar</span>
-        <span><span class="wg-dot gemist"></span>over due</span>
+        <span><span class="wg-dot gemist"></span>overdue</span>
         <span><span class="wg-dot ongepland"></span>niet gepland</span>
         <span><span class="wg-dot rooster"></span>rooster</span>
         <span><span class="wg-dot huiswerk"></span>huiswerk</span>
@@ -246,7 +246,7 @@ const verdictText = computed(() => {
   const parts = [];
   if (resterendeMinuten.value > 0) parts.push(`Nog ${formatMin(resterendeMinuten.value)} te gaan`);
   else parts.push('Alles afgewerkt!');
-  if (achterstandMinuten.value > 0) parts.push(`${formatMin(achterstandMinuten.value)} over due`);
+  if (achterstandMinuten.value > 0) parts.push(`${formatMin(achterstandMinuten.value)} overdue`);
   if (ongeplandCount.value > 0) parts.push(`${ongeplandCount.value} niet ingepland`);
   return parts.join(' · ');
 });

@@ -1,9 +1,9 @@
 <template>
-  <div class="bd">
+  <div class="bd" :class="{ 'bd-fill': fill }">
     <!-- Chart area: y-labels left + SVG + right spacer -->
     <div class="bd-chart-row">
       <!-- Y-axis labels (same width as wg-dag-cell) -->
-      <div class="bd-y-axis">
+      <div v-if="showLabels" class="bd-y-axis">
         <span
           v-for="(tick, i) in yTicks"
           :key="'yl' + i"
@@ -74,11 +74,11 @@
       </div>
 
       <!-- Right spacer (same width as wg-label-cell) -->
-      <div class="bd-right-spacer"></div>
+      <div v-if="showLabels" class="bd-right-spacer"></div>
     </div>
 
     <!-- Day labels row (aligned with grid) -->
-    <div class="bd-dag-row">
+    <div v-if="showLabels" class="bd-dag-row">
       <div class="bd-y-axis"></div>
       <div class="bd-dag-labels">
         <span
@@ -93,7 +93,7 @@
     </div>
 
     <!-- Legend (aligned like wg-legende) -->
-    <div class="bd-legend">
+    <div v-if="showLabels" class="bd-legend">
       <span class="bd-legend-ideal">ideaal</span>
       <span class="bd-legend-planned">gepland</span>
       <span class="bd-legend-actual">afgewerkt</span>
@@ -105,6 +105,11 @@
 <script setup>
 import { computed } from 'vue';
 import { usePlanner } from '../stores/planner.js';
+
+const props = defineProps({
+  showLabels: { type: Boolean, default: true },
+  fill: { type: Boolean, default: false },
+});
 
 const { alleTaken } = usePlanner();
 
@@ -219,7 +224,6 @@ const gapData = computed(() => {
 <style scoped>
 .bd {
   max-width: 560px;
-  margin: 0 auto;
 }
 
 .bd-chart-row {
@@ -250,6 +254,18 @@ const gapData = computed(() => {
   aspect-ratio: 2 / 1;
 }
 
+/* Fill mode: match height of sibling */
+.bd-fill {
+  height: 100%;
+}
+.bd-fill .bd-chart-row {
+  height: 100%;
+}
+.bd-fill .bd-svg-wrap {
+  aspect-ratio: unset;
+  height: 100%;
+}
+
 .bd-svg {
   width: 100%;
   height: 100%;
@@ -277,42 +293,42 @@ const gapData = computed(() => {
 .bd-ideal {
   fill: none;
   stroke: var(--clr-text-muted, #9ca3af);
-  stroke-width: 3;
+  stroke-width: 6;
   stroke-dasharray: 12 8;
   opacity: 0.5;
 }
 
 .bd-planned {
   fill: none;
-  stroke: #93c5fd;
-  stroke-width: 3;
+  stroke: #7eb8d8;
+  stroke-width: 6;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
-.bd-planned-dot { fill: #93c5fd; }
+.bd-planned-dot { fill: #7eb8d8; }
 
 .bd-actual {
   fill: none;
-  stroke: #10b981;
-  stroke-width: 5;
+  stroke: #86cfac;
+  stroke-width: 6;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
-.bd-dot { fill: #10b981; }
+.bd-dot { fill: #86cfac; }
 .bd-dot-today {
   fill: white;
-  stroke: #10b981;
-  stroke-width: 5;
+  stroke: #86cfac;
+  stroke-width: 6;
 }
 
 /* Gap */
 .bd-gap-bar {
-  fill: #ef4444;
+  fill: #f87171;
   opacity: 0.15;
 }
 .bd-gap-label {
   font-size: 22px;
-  fill: #ef4444;
+  fill: #f87171;
   font-weight: 700;
   font-family: inherit;
 }
@@ -366,14 +382,14 @@ const gapData = computed(() => {
   opacity: 0.5;
 }
 .bd-legend-planned::before {
-  background: #93c5fd;
+  background: #7eb8d8;
 }
 .bd-legend-actual::before {
-  background: #10b981;
+  background: #86cfac;
   height: 3px;
 }
 .bd-legend-gap::before {
-  background: #ef4444;
+  background: #f87171;
 }
 
 @media (max-width: 700px) {

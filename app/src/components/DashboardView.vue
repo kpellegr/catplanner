@@ -6,18 +6,19 @@
       <span class="db-alert-text">{{ nogInTeDienenCount === 1 ? 'taak' : 'taken' }} klaar maar nog niet ingediend</span>
     </div>
 
-    <!-- Week grid -->
-    <div class="db-section">
-      <WeekGrid compact />
-    </div>
-
-    <!-- Burn-down chart -->
-    <div class="db-section">
-      <BurndownChart />
+    <!-- Grafieken naast elkaar -->
+    <div class="db-charts">
+      <div class="db-chart">
+        <WeekGrid compact />
+      </div>
+      <div class="db-chart">
+        <BurndownChart :show-labels="false" fill />
+      </div>
     </div>
 
     <!-- Status samenvatting -->
     <div class="db-stats">
+      <h3 class="db-stats-title">Samenvatting</h3>
       <div v-if="ingediendCount" class="db-stat">
         <span class="db-stat-count db-count-ingediend">{{ ingediendCount }}</span>
         <span class="db-stat-label">ingediend</span>
@@ -35,7 +36,7 @@
       </div>
       <div v-if="overdueCount" class="db-stat">
         <span class="db-stat-count db-count-oranje">{{ overdueCount }}</span>
-        <span class="db-stat-label">over due</span>
+        <span class="db-stat-label">overdue</span>
         <span class="db-stat-min db-min-oranje">{{ overdueMin }}'</span>
       </div>
       <div v-if="ongeplandCount" class="db-stat">
@@ -45,7 +46,7 @@
       </div>
       <div class="db-stat db-stat-totaal">
         <span class="db-stat-count">{{ totaalCount }}</span>
-        <span class="db-stat-label">totaal</span>
+        <span class="db-stat-label"></span>
         <span class="db-stat-min">{{ totaalMin }}'</span>
       </div>
     </div>
@@ -243,7 +244,7 @@ function statusLabel(taak, isVerleden) {
   if (taak.voortgang.status === 'ingediend') return { text: 'INGEDIEND', cls: 'ingediend' };
   if (taak.voortgang.status === 'klaar') return { text: 'KLAAR', cls: 'klaar' };
   if (taak.voortgang.status === 'bezig') return { text: 'BEZIG', cls: 'bezig' };
-  if (isVerleden || (taak.geplandOp && isDagVerleden(taak.geplandOp))) return { text: 'OVER DUE', cls: 'gemist' };
+  if (isVerleden || (taak.geplandOp && isDagVerleden(taak.geplandOp))) return { text: 'OVERDUE', cls: 'gemist' };
   return { text: 'OPEN', cls: 'open' };
 }
 
@@ -263,8 +264,35 @@ function toggleKlaar(taak) {
 
 <style scoped>
 .db {
-  max-width: 560px;
+  max-width: 900px;
   margin: 0 auto;
+}
+
+/* Charts side by side */
+.db-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--clr-border);
+}
+.db-chart {
+  min-width: 0;
+}
+.db-chart :deep(.wg) {
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+.db-chart :deep(.bd) {
+  max-width: none;
+  padding: 0;
+}
+
+@media (max-width: 700px) {
+  .db-charts {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Alert: nog in te dienen */
@@ -309,44 +337,54 @@ function toggleKlaar(taak) {
   flex-direction: column;
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--clr-border);
+  max-width: 320px;
+}
+.db-stats-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--clr-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.25rem;
 }
 .db-stat {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.3rem 0;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
   border-bottom: 1px solid rgba(0,0,0,0.04);
 }
 .db-stat:last-child {
   border-bottom: none;
 }
 .db-stat-count {
-  font-size: 0.7rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  min-width: 1.4em;
-  text-align: center;
+  min-width: 1.8em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .db-count-ingediend { color: #059669; }
-.db-count-klaar { color: #6ee7b7; }
+.db-count-klaar { color: #4ade80; }
 .db-count-blauw { color: #93c5fd; }
-.db-count-rood { color: #ef4444; }
-.db-count-oranje { color: #d97706; }
+.db-count-rood { color: #f87171; }
+.db-count-oranje { color: #fbbf24; }
 .db-stat-label {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: var(--clr-text-muted);
 }
 .db-stat-min {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--clr-text-muted);
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
 .db-min-ingediend { color: #059669; }
-.db-min-klaar { color: #6ee7b7; }
+.db-min-klaar { color: #4ade80; }
 .db-min-blauw { color: #93c5fd; }
-.db-min-rood { color: #ef4444; }
-.db-min-oranje { color: #d97706; }
+.db-min-rood { color: #f87171; }
+.db-min-oranje { color: #fbbf24; }
 .db-stat-totaal {
   border-top: 1px solid var(--clr-border);
   margin-top: 0.15rem;
@@ -407,12 +445,12 @@ function toggleKlaar(taak) {
   opacity: 0.5;
 }
 .db-taak-klaar {
-  border-left-color: #6ee7b7;
+  border-left-color: #4ade80;
   border-left-style: dashed;
   opacity: 0.7;
 }
 .db-taak-gemist {
-  border-left-color: #d97706;
+  border-left-color: #fbbf24;
 }
 .db-taak-rooster {
   border-left-color: #c4b5fd;
@@ -451,7 +489,7 @@ function toggleKlaar(taak) {
 }
 .db-taak-klaar .db-taak-omschrijving {
   text-decoration: line-through;
-  text-decoration-color: #6ee7b7;
+  text-decoration-color: #4ade80;
 }
 
 /* Duur */
@@ -481,7 +519,7 @@ function toggleKlaar(taak) {
   background: #ecfdf5;
 }
 .db-status-klaar {
-  color: #6ee7b7;
+  color: #4ade80;
   background: #f0fdf9;
 }
 .db-status-bezig {
@@ -489,8 +527,8 @@ function toggleKlaar(taak) {
   background: #fffbeb;
 }
 .db-status-gemist {
-  color: #b45309;
-  background: #fff7ed;
+  color: #f59e0b;
+  background: #fffbeb;
 }
 .db-status-open {
   color: var(--clr-text-muted);
