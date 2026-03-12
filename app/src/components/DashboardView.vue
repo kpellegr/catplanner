@@ -191,7 +191,10 @@ function gaNaarOngepland() {
 }
 
 function gaNaarDag({ dag, uur }) {
-  if (dag === '_') return; // ongepland row
+  if (dag === '_') {
+    gaNaarOngepland();
+    return;
+  }
   resetFilters();
   wpFocusDag.value = dag;
   wpFocusBlok.value = uur * 4; // uur (0-based) → blok (15-min slot)

@@ -24,15 +24,22 @@
             class="bd-grid"
           />
 
-          <!-- Vertical grid lines per dag -->
+          <!-- Vertical grid lines: 8 lines (boundaries) -->
           <line
-            v-for="(_, i) in dagen"
+            v-for="i in 8"
             :key="'gv' + i"
-            :x1="sx(i)" y1="0"
-            :x2="sx(i)" y2="500"
+            :x1="sx(i - 1)" y1="0"
+            :x2="sx(i - 1)" y2="500"
             class="bd-grid"
-            :class="{ 'bd-grid-today': i === vandaagIdx }"
+            :class="{ 'bd-grid-today': isTodayLine(i - 1) }"
           />
+
+          <!-- Totaal label bij startpunt -->
+          <text
+            :x="sx(0)" :y="sy(totaalMin) - 12"
+            text-anchor="middle"
+            class="bd-totaal-label"
+          >{{ totaalMin }}'</text>
 
           <!-- Ideal line -->
           <polyline :points="idealPoints" class="bd-ideal" />
@@ -53,19 +60,19 @@
             :key="'dot' + i"
             :cx="p.x" :cy="p.y" r="8"
             class="bd-dot"
-            :class="{ 'bd-dot-today': i === vandaagIdx }"
+            :class="{ 'bd-dot-today': i === actualDots.length - 1 }"
           />
 
           <!-- Gap marker -->
           <template v-if="gapData">
             <rect
-              :x="sx(6) - 30" :y="gapData.y"
+              :x="sx(7) - 30" :y="gapData.y"
               width="60" :height="gapData.h"
               rx="6"
               class="bd-gap-bar"
             />
             <text
-              :x="sx(6)" :y="gapData.y - 12"
+              :x="sx(7)" :y="gapData.y - 12"
               text-anchor="middle"
               class="bd-gap-label"
             >{{ gapData.label }}</text>
@@ -77,7 +84,7 @@
       <div v-if="showLabels" class="bd-right-spacer"></div>
     </div>
 
-    <!-- Day labels row (aligned with grid) -->
+    <!-- Day labels row (aligned with grid) — labels centered between boundaries -->
     <div v-if="showLabels" class="bd-dag-row">
       <div class="bd-y-axis"></div>
       <div class="bd-dag-labels">
@@ -86,7 +93,7 @@
           :key="'dl' + i"
           class="bd-dag-label"
           :class="{ 'bd-dag-today': i === vandaagIdx }"
-          :style="{ left: ((15 + i / 6 * 1000) / 1030 * 100) + '%' }"
+          :style="{ left: dagLabelPct(i) + '%' }"
         >{{ dag }}</span>
       </div>
       <div class="bd-right-spacer"></div>
@@ -142,11 +149,23 @@ const yTicks = computed(() => {
 });
 
 // SVG internal coords: 1000 x 500
-function sx(dayIdx) { return (dayIdx / 6) * 1000; }
+// 8 boundary points: 0=ma-ochtend, 1=ma→di, 2=di→wo, ..., 7=zo-avond
+function sx(boundaryIdx) { return (boundaryIdx / 7) * 1000; }
 function sy(val) { return 500 * (1 - val / maxY.value); }
 function yPct(val) { return (15 + (1 - val / maxY.value) * 500) / 530 * 100; }
 
-// Per dag: cumulative afgewerkte minuten
+// Day label centered between its two boundaries
+function dagLabelPct(dagIdx) {
+  const midX = (sx(dagIdx) + sx(dagIdx + 1)) / 2;
+  return (15 + midX) / 1030 * 100;
+}
+
+// Today line: the line AFTER today's dag (= einde vandaag)
+function isTodayLine(boundaryIdx) {
+  return boundaryIdx === vandaagIdx + 1;
+}
+
+// Per dag: cumulative afgewerkte minuten (na einde van die dag)
 const cumulatieveKlaar = computed(() => {
   const perDag = new Array(7).fill(0);
   for (const t of alleTaken.value) {
@@ -162,7 +181,7 @@ const cumulatieveKlaar = computed(() => {
   return cum;
 });
 
-// Per dag: cumulative geplande minuten
+// Per dag: cumulative geplande minuten (na einde van die dag)
 const cumulatieveGepland = computed(() => {
   const perDag = new Array(7).fill(0);
   for (const t of alleTaken.value) {
@@ -176,30 +195,39 @@ const cumulatieveGepland = computed(() => {
   return cum;
 });
 
-const remaining = computed(() =>
-  cumulatieveKlaar.value.map(c => Math.max(0, totaalMin.value - c))
-);
-const plannedRemaining = computed(() =>
-  cumulatieveGepland.value.map(c => Math.max(0, totaalMin.value - c))
-);
+// 8 boundary values: [totaal, na-ma, na-di, ..., na-zo]
+const remaining = computed(() => {
+  const r = [totaalMin.value]; // boundary 0: start of week
+  for (let i = 0; i < 7; i++) {
+    r.push(Math.max(0, totaalMin.value - cumulatieveKlaar.value[i]));
+  }
+  return r;
+});
+const plannedRemaining = computed(() => {
+  const r = [totaalMin.value]; // boundary 0: start of week
+  for (let i = 0; i < 7; i++) {
+    r.push(Math.max(0, totaalMin.value - cumulatieveGepland.value[i]));
+  }
+  return r;
+});
 
-// Ideale lijn: van totaalMin → 0
+// Ideale lijn: van totaalMin (punt 0) → 0 (punt 7)
 const idealPoints = computed(() =>
-  dagen.map((_, i) => `${sx(i)},${sy(totaalMin.value * (6 - i) / 6)}`).join(' ')
+  Array.from({ length: 8 }, (_, i) => `${sx(i)},${sy(totaalMin.value * (7 - i) / 7)}`).join(' ')
 );
 
-// Geplande lijn: alle 7 dagen
+// Geplande lijn: alle 8 boundary punten
 const plannedDots = computed(() =>
-  dagen.map((_, i) => ({ x: sx(i), y: sy(plannedRemaining.value[i]) }))
+  Array.from({ length: 8 }, (_, i) => ({ x: sx(i), y: sy(plannedRemaining.value[i]) }))
 );
 const plannedPoints = computed(() =>
   plannedDots.value.map(p => `${p.x},${p.y}`).join(' ')
 );
 
-// Werkelijke lijn: tot en met vandaag
+// Werkelijke lijn: punt 0 (start) tot en met einde vandaag (boundary vandaagIdx+1)
 const actualDots = computed(() => {
   const dots = [];
-  for (let i = 0; i <= vandaagIdx && i < 7; i++) {
+  for (let i = 0; i <= vandaagIdx + 1 && i < 8; i++) {
     dots.push({ x: sx(i), y: sy(remaining.value[i]) });
   }
   return dots;
@@ -209,9 +237,9 @@ const actualPoints = computed(() => {
   return actualDots.value.map(p => `${p.x},${p.y}`).join(' ');
 });
 
-// Gap marker
+// Gap marker (at boundary 7 = end of week)
 const gapData = computed(() => {
-  const min = plannedRemaining.value[6] || 0;
+  const min = plannedRemaining.value[7] || 0;
   if (min <= 0) return null;
   return {
     y: sy(min),
@@ -280,13 +308,21 @@ const gapData = computed(() => {
 
 /* Grid */
 .bd-grid {
-  stroke: var(--clr-border, #e5e7eb);
+  stroke: #fff;
   stroke-width: 1;
 }
 .bd-grid-today {
   stroke: var(--clr-accent, #6366f1);
   stroke-width: 2;
   stroke-dasharray: 6 6;
+}
+
+/* Totaal label */
+.bd-totaal-label {
+  font-size: 22px;
+  fill: var(--clr-text-muted, #9ca3af);
+  font-weight: 700;
+  font-family: inherit;
 }
 
 /* Lines */

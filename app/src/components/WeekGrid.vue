@@ -73,6 +73,12 @@ function isDagVerleden(dag) {
   return dagen.indexOf(dag) < vandaagIdx;
 }
 
+function shortVak(taak) {
+  const v = taak.vak || taak.sectie || '';
+  if (!v) return '?';
+  return v.split(/[\s/]+/)[0].substring(0, 4).toUpperCase();
+}
+
 function uurLabel(uurIdx) {
   const h = 8 + Math.floor((30 + uurIdx * 60) / 60);
   return `${h}`;
@@ -140,7 +146,8 @@ const takenMap = computed(() => {
     else if (isRooster) kleur = 'rooster';
     else kleur = 'huiswerk';
 
-    const tooltip = `${label}${minuten ? ` · ${minuten}min` : ''}`;
+    const code = taak.code || shortVak(taak);
+    const tooltip = isRooster ? `${code} R` : `${code} ${minuten}'`;
 
     if (taak.geplandOp && taak.geplandBlok != null) {
       for (let j = 0; j < aantalBlokken; j++) {
